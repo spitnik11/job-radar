@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Local database + backups (never commit your job data)
+*.db
+*.db-wal
+*.db-shm
+backups/
+logs/
+
+# Local-only config overrides
+backend/data/*.local.yaml
+
+# Editor
+.vscode/
+.idea/

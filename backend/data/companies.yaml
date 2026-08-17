@@ -1,0 +1,34 @@
+# Seed company registry (spec section 13). Tokens verified live 2026-08-17.
+# The registry is meant to grow — add local Tampa Bay employers and any company you find
+# hiring in your target roles. Each entry: {token, name, domain?}. token = the ATS board id.
+# Disable a whole source in settings.yaml (sources:).
+
+greenhouse:
+  - { token: gitlab, name: GitLab, domain: gitlab.com }
+  - { token: cloudflare, name: Cloudflare, domain: cloudflare.com }
+  - { token: gusto, name: Gusto, domain: gusto.com }
+  - { token: twilio, name: Twilio, domain: twilio.com }
+  - { token: samsara, name: Samsara, domain: samsara.com }
+  - { token: affirm, name: Affirm, domain: affirm.com }
+  - { token: instacart, name: Instacart, domain: instacart.com }
+  - { token: robinhood, name: Robinhood, domain: robinhood.com }
+  - { token: reddit, name: Reddit, domain: reddit.com }
+  - { token: dropbox, name: Dropbox, domain: dropbox.com }
+  - { token: asana, name: Asana, domain: asana.com }
+  - { token: coinbase, name: Coinbase, domain: coinbase.com }
+  - { token: elastic, name: Elastic, domain: elastic.co }
+  - { token: discord, name: Discord, domain: discord.com }
+
+lever:
+  - { token: spotify, name: Spotify, domain: spotify.com }
+  - { token: gopuff, name: Gopuff, domain: gopuff.com }
+  - { token: matchgroup, name: Match Group, domain: mtch.com }
+
+ashby:
+  - { token: openai, name: OpenAI, domain: openai.com }
+  - { token: ramp, name: Ramp, domain: ramp.com }
+  - { token: notion, name: Notion, domain: notion.so }
+  - { token: linear, name: Linear, domain: linear.app }
+  - { token: cursor, name: Cursor, domain: cursor.com }
+  - { token: posthog, name: PostHog, domain: posthog.com }
+  - { token: hex, name: Hex, domain: hex.tech }

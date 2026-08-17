@@ -1,0 +1,42 @@
+# Search settings (spec section 49). Config migrations work like DB migrations later.
+config_version: 1
+
+search:
+  radius_miles: 45
+  include_remote: true
+  include_hybrid: true
+  include_onsite: true
+  minimum_score: 65
+  max_required_years: 5
+
+# Target role families (spec section 4). Tier A = strongest, B = development, C = AI.
+target_roles:
+  - { title: application support analyst, tier: A }
+  - { title: business systems analyst, tier: A }
+  - { title: implementation specialist, tier: A }
+  - { title: qa analyst, tier: A }
+  - { title: it support specialist, tier: A }
+  - { title: technical support engineer, tier: A }
+  - { title: systems support analyst, tier: A }
+  - { title: application analyst, tier: A }
+  - { title: help desk analyst, tier: A }
+  - { title: desktop support technician, tier: A }
+  - { title: software developer, tier: B }
+  - { title: junior software developer, tier: B }
+  - { title: full stack developer, tier: B }
+  - { title: python developer, tier: B }
+  - { title: javascript developer, tier: B }
+  - { title: typescript developer, tier: B }
+  - { title: automation developer, tier: B }
+  - { title: junior application developer, tier: B }
+  - { title: ai application developer, tier: C }
+  - { title: generative ai developer, tier: C }
+  - { title: ai automation developer, tier: C }
+  - { title: ai solutions developer, tier: C }
+  - { title: junior ai engineer, tier: C }
+  - { title: llm integration developer, tier: C }
+
+sources:
+  greenhouse: true
+  lever: true
+  ashby: true

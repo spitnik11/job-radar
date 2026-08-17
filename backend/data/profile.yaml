@@ -1,0 +1,102 @@
+# Candidate profile — encoded from design spec sections 4-7.
+# Skill weights (0.0-1.0) express candidate strength/importance, used by the scorer.
+# Resume re-import is a V1.1 feature; for Phase 0 this file IS the profile.
+
+candidate:
+  name: Gabriel Pina
+  years_experience: 3          # IT field support + peer tech support (conservative)
+  education:
+    level: bachelor            # B.A.S. Technology Development & Management; A.S. CS Programming
+    fields:
+      - technology development and management
+      - computer programming and analysis
+
+home:
+  city: Brandon
+  region: FL
+  country: US
+
+# Weighted skill taxonomy (spec section 5). Keys must match matching/skills.py canonical names.
+skills:
+  # Primary development
+  python: 1.00
+  javascript: 0.90
+  typescript: 0.90
+  sql: 0.85
+  react: 0.85
+  nextjs: 0.80
+  nodejs: 0.85
+  rest_api: 0.85
+  html_css: 0.70
+  # AI
+  llm_integration: 1.00
+  openai: 0.85
+  anthropic_claude: 0.85
+  grok_api: 0.70
+  multi_agent_orchestration: 0.90
+  prompt_engineering: 0.75
+  mcp: 0.80
+  comfyui: 0.65
+  # Platform / DevOps
+  git: 0.90
+  github: 0.90
+  github_actions: 0.75
+  docker: 0.80
+  cloudflare: 0.70
+  ci_cd: 0.80
+  electron: 0.75
+  # Support / systems
+  windows: 0.90
+  microsoft_365: 0.90
+  active_directory: 0.85
+  sharepoint: 0.80
+  outlook: 0.80
+  troubleshooting: 1.00
+  hardware_support: 0.75
+  networking: 0.70
+  wireshark: 0.60
+  documentation: 0.90
+  # Project / business
+  customer_facing: 1.00
+  agile: 0.65
+  jira: 0.65
+  notion: 0.60
+  trello: 0.60
+
+# Evidence source per skill (spec section 57-58): professional employment weighs more than
+# portfolio projects for jobs that explicitly require professional experience.
+professional_skills:
+  - windows
+  - microsoft_365
+  - active_directory
+  - sharepoint
+  - outlook
+  - troubleshooting
+  - hardware_support
+  - networking
+  - customer_facing
+  - documentation
+
+portfolio_skills:
+  - python
+  - javascript
+  - typescript
+  - react
+  - nextjs
+  - nodejs
+  - rest_api
+  - llm_integration
+  - openai
+  - anthropic_claude
+  - grok_api
+  - multi_agent_orchestration
+  - prompt_engineering
+  - mcp
+  - comfyui
+  - git
+  - github
+  - github_actions
+  - docker
+  - cloudflare
+  - ci_cd
+  - electron
