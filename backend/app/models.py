@@ -76,6 +76,25 @@ class Job(Base):
     status: Mapped[str] = mapped_column(String, default="NEW", index=True)
 
 
+class JobNote(Base):
+    """Free-text note the user attaches to a job (spec section 29)."""
+    __tablename__ = "job_notes"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[str] = mapped_column(String, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    text: Mapped[str] = mapped_column(Text)
+
+
+class JobEvent(Base):
+    """Timeline entry — mostly auto-logged status changes (spec section 29)."""
+    __tablename__ = "job_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[str] = mapped_column(String, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    kind: Mapped[str] = mapped_column(String, default="status")
+    detail: Mapped[str] = mapped_column(String, default="")
+
+
 class SchemaMeta(Base):
     __tablename__ = "schema_metadata"
     key: Mapped[str] = mapped_column(String, primary_key=True)

@@ -118,6 +118,18 @@
   .btn:hover{background:var(--hover)}
   .btn.primary{background:var(--accent);color:#fff;border-color:transparent}
   .btn.on{color:var(--good);border-color:var(--good)}
+  .stage{font-family:inherit;font-size:14px;background:var(--lift);color:var(--ink);border:1px solid var(--hair);
+    border-radius:8px;padding:9px 11px;width:100%;max-width:300px}
+  .noteadd{display:flex;gap:8px;margin-bottom:14px}
+  .noteadd input{flex:1;background:var(--lift);border:1px solid var(--hair);border-radius:8px;padding:9px 12px;
+    color:var(--ink);font-size:14px;outline:none}
+  .noteadd input:focus{border-color:var(--accent)}
+  .timeline .tempty{font-size:13px;color:var(--subtle)}
+  .trow{display:flex;align-items:baseline;gap:12px;padding:9px 0;border-top:1px solid var(--hair-soft);font-size:13px}
+  .trow:first-child{border-top:0}
+  .tk{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--subtle);width:42px;flex:none}
+  .trow.note .tk{color:var(--accent)}
+  .tt{flex:1;color:var(--ink)} .tm2{color:var(--subtle);font-variant-numeric:tabular-nums;flex:none}
 
   .empty{text-align:center;color:var(--subtle);font-size:15px;padding:60px 30px;line-height:1.6}
 
@@ -209,6 +221,9 @@ document.getElementById('ic-apply').innerHTML=ICON.send;
 
 let jobs=[], tab='jobs', view='feed', sel=-1, detail=null, feedScroll=0;
 const TITLES={jobs:'Home',saved:'Saved',applied:'Applied'};
+const PIPELINE=['APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER'];
+const STAGES=['VIEWED','SAVED','APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN','DISMISSED'];
+const nice=s=>s.toLowerCase().replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
 
 function band(n){return n>=85?['s-strong','Strong']:n>=70?['s-good','Good']:n>=60?['s-ok','Possible']:['s-weak','Weak'];}
 function ago(iso){if(!iso)return '';
@@ -225,7 +240,8 @@ async function load(){
     if(document.getElementById('remote').checked) p.set('remote_only','true');
     p.set('min_score',document.getElementById('minscore').value);
     if(document.getElementById('hidden').checked) p.set('include_suppressed','true');
-  } else p.set('status', tab.toUpperCase());
+  } else if(tab==='saved') p.set('status','SAVED');
+  else if(tab==='applied') p.set('status_in', PIPELINE.join(','));
   jobs=await api('/jobs?'+p.toString());
   sel=-1; view='feed'; renderHead(); renderFeed(); refreshBadges();
 }
@@ -303,8 +319,39 @@ async function openDetail(id){
       <span>Seniority · <b>${esc(j.seniority)}</b></span>
       <span>Salary · <b>${sal}</b></span>
       <span>Posted · <b>${ago(j.date_posted)||'—'} ago</b></span></div></div>
+    <div class="dpanel"><h4>Stage</h4>
+      <select id="stage" class="stage">${STAGES.map(s=>`<option value="${s}" ${s===j.status?'selected':''}>${nice(s)}</option>`).join('')}</select>
+    </div>
+    <div class="dpanel"><h4>Activity</h4>
+      <div class="noteadd"><input id="noteinput" placeholder="Add a note…" autocomplete="off"><button class="btn" id="noteAdd">Add</button></div>
+      <div id="timeline" class="timeline"></div>
+    </div>
     <div class="dpanel"><h4>Description</h4><div class="desc">${esc(j.description_text).slice(0,4000)}</div></div>
   </div>`;
+  document.getElementById('stage').onchange=e=>setStage(j.id,e.target.value);
+  document.getElementById('noteAdd').onclick=()=>addNote(j.id);
+  document.getElementById('noteinput').addEventListener('keydown',e=>{if(e.key==='Enter')addNote(j.id);});
+  loadActivity(j.id);
+}
+
+async function setStage(id,status){
+  await api('/jobs/'+encodeURIComponent(id)+'/status?status='+status,{method:'POST'});
+  const jj=jobs.find(x=>x.id===id); if(jj) jj.status=status; if(detail&&detail.id===id) detail.status=status;
+  refreshBadges(); loadActivity(id);
+}
+async function addNote(id){
+  const el=document.getElementById('noteinput'); const text=el.value.trim(); if(!text) return;
+  await api('/jobs/'+encodeURIComponent(id)+'/notes',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+  el.value=''; loadActivity(id);
+}
+async function loadActivity(id){
+  const el=document.getElementById('timeline'); if(!el) return;
+  const acts=await api('/jobs/'+encodeURIComponent(id)+'/activity');
+  el.innerHTML = acts.length ? acts.map(a=>`<div class="trow ${a.kind}">
+    <span class="tk">${a.kind==='note'?'Note':'Stage'}</span>
+    <span class="tt">${esc(a.text)}</span><span class="tm2">${ago(a.ts)} ago</span></div>`).join('')
+    : '<div class="tempty">No activity yet.</div>';
 }
 
 function back(){ view='feed'; detail=null; renderHead(); renderFeed(); window.scrollTo(0,feedScroll); }
@@ -343,10 +390,10 @@ function setTab(t){ tab=t; sel=-1;
 document.querySelectorAll('.navitem').forEach(b=>b.onclick=()=>setTab(b.dataset.nav));
 
 async function refreshBadges(){
-  for(const t of ['saved','applied']){
-    const n=(await api('/jobs?status='+t.toUpperCase()+'&limit=999')).length;
-    document.getElementById('b-'+t).textContent=n||'';
-  }
+  const saved=(await api('/jobs?status=SAVED&limit=999')).length;
+  const applied=(await api('/jobs?status_in='+PIPELINE.join(',')+'&limit=999')).length;
+  document.getElementById('b-saved').textContent=saved||'';
+  document.getElementById('b-applied').textContent=applied||'';
   document.getElementById('b-jobs').textContent = tab==='jobs'?jobs.length:'';
 }
 

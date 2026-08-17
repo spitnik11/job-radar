@@ -6,7 +6,15 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select
+
+# statuses that count as "in the application pipeline" — the Applied tab shows all of these
+PIPELINE = ["APPLYING", "APPLIED", "PHONE_SCREEN", "INTERVIEW", "FINAL_INTERVIEW", "OFFER"]
+
+
+class NoteIn(BaseModel):
+    text: str
 
 from .. import APP_VERSION, SCHEMA_VERSION
 from ..config import load_profile
@@ -62,16 +70,19 @@ def version():
 def list_jobs(
     q: Optional[str] = None,
     status: Optional[str] = None,
+    status_in: Optional[str] = None,          # CSV; e.g. the Applied tab's pipeline set
     remote_only: bool = False,
     min_score: Optional[int] = None,
     include_suppressed: bool = False,
     limit: int = Query(500, le=2000),
 ):
     profile = load_profile()
+    grouped = status_in.split(",") if status_in else None
+    scored = None if (status or grouped) else \
+        (min_score if min_score is not None else profile.minimum_score)
     jobs = repo.list_jobs(
-        query=q, status=status, remote_only=remote_only,
-        min_score=min_score if min_score is not None else profile.minimum_score,
-        include_suppressed=include_suppressed, limit=limit,
+        query=q, status=status, status_in=grouped, remote_only=remote_only,
+        min_score=scored, include_suppressed=include_suppressed, limit=limit,
     )
     return [_list_item(j, profile) for j in jobs]
 
@@ -114,6 +125,26 @@ def set_status(job_id: str, status: str):
     if job is None:
         raise HTTPException(404, "job not found")
     return _detail(job, load_profile())
+
+
+@router.get("/jobs/{job_id}/activity")
+def activity(job_id: str):
+    if repo.get(job_id) is None:
+        raise HTTPException(404, "job not found")
+    return repo.list_activity(job_id)
+
+
+@router.post("/jobs/{job_id}/notes")
+def add_note(job_id: str, body: NoteIn):
+    result = repo.add_note(job_id, body.text)
+    if result is None:
+        raise HTTPException(404, "job not found")
+    return result
+
+
+@router.get("/pipeline")
+def pipeline_statuses():
+    return PIPELINE
 
 
 @router.get("/sources")

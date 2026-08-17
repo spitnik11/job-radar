@@ -29,11 +29,16 @@ def _set_sqlite_pragma(dbapi_conn, _record):
 
 
 def init_db() -> None:
+    # create_all is additive — it adds new tables (job_notes/job_events) without touching
+    # existing data. Column-altering changes will need Alembic; new tables don't.
     Base.metadata.create_all(ENGINE)
     with SessionLocal() as s:
-        if not s.get(SchemaMeta, "schema_version"):
+        row = s.get(SchemaMeta, "schema_version")
+        if row is None:
             s.add(SchemaMeta(key="schema_version", value=str(SCHEMA_VERSION)))
-            s.commit()
+        else:
+            row.value = str(SCHEMA_VERSION)
+        s.commit()
 
 
 def get_session() -> Session:

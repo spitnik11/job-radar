@@ -8,7 +8,7 @@ from typing import Optional
 from sqlalchemy import or_, select
 
 from .db import SessionLocal
-from .models import Job
+from .models import Job, JobEvent, JobNote
 from .schemas import CanonicalJob, ScoreFactor
 
 # Statuses the user owns — never overwritten by a re-sync.
@@ -107,6 +107,7 @@ class SQLiteJobRepository:
         self,
         *,
         status: Optional[str] = None,
+        status_in: Optional[list[str]] = None,
         include_suppressed: bool = False,
         include_dismissed: bool = False,
         min_score: Optional[int] = None,
@@ -117,6 +118,8 @@ class SQLiteJobRepository:
         stmt = select(Job)
         if status:
             stmt = stmt.where(Job.status == status)
+        elif status_in:
+            stmt = stmt.where(Job.status.in_(status_in))
         else:
             if not include_suppressed:
                 stmt = stmt.where(Job.suppressed.is_(False))
@@ -144,6 +147,33 @@ class SQLiteJobRepository:
             row = s.get(Job, job_id)
             if row is None:
                 return None
+            old = row.status
             row.status = status
+            # log meaningful transitions only (skip the VIEWED "undo"/just-looked state)
+            if status != old and status != "VIEWED":
+                s.add(JobEvent(job_id=job_id, created_at=_now(), kind="status",
+                               detail=f"{old} → {status}"))
             s.commit()
             return _to_canonical(row)
+
+    def add_note(self, job_id: str, text: str) -> Optional[list[dict]]:
+        text = (text or "").strip()
+        with SessionLocal() as s:
+            if s.get(Job, job_id) is None:
+                return None
+            if text:
+                s.add(JobNote(job_id=job_id, created_at=_now(), text=text))
+                s.commit()
+        return self.list_activity(job_id)
+
+    def list_activity(self, job_id: str) -> list[dict]:
+        """Merged newest-first timeline of notes + status events."""
+        with SessionLocal() as s:
+            notes = s.execute(select(JobNote).where(JobNote.job_id == job_id)).scalars().all()
+            events = s.execute(select(JobEvent).where(JobEvent.job_id == job_id)).scalars().all()
+        items = [{"id": n.id, "ts": n.created_at.isoformat(), "kind": "note", "text": n.text}
+                 for n in notes]
+        items += [{"ts": e.created_at.isoformat(), "kind": e.kind, "text": e.detail}
+                  for e in events]
+        items.sort(key=lambda x: x["ts"], reverse=True)
+        return items
