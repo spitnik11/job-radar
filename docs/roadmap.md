@@ -26,11 +26,16 @@ grows without a rewrite. This file records *what was deferred and why* so nothin
 | Precise geocoding | Static Tampa-Bay city table covers the commute market | V1.1 (Nominatim) |
 | Resume parsing | Spec §5-7 already extracts the taxonomy → `profile.yaml` | V1.1 (re-import) |
 
+## Shipped since Phase 0
+
+- **Phase 1 (coverage):** USAJOBS federal connector (free-key-gated) + registry expansion (ConnectWise/Tampa).
+- **Phase 2 (application tracking):** notes, auto-logged status events, pipeline Applied tab, Stage selector.
+
 ## V1.1 (after the core is proven in daily use)
 
 Local embeddings + semantic rerank · GitHub repo importer · resume re-import · scam/trust engine
-(arrives with the first untrusted source) · FTS5 · precise geocoding · USAJOBS + SmartRecruiters ·
-Alembic baseline · salary filters · application notes · daily digest.
+(arrives with the first untrusted source) · FTS5 · precise geocoding · background auto-sync (4h) ·
+Alembic baseline · salary filters · daily digest.
 
 ## V1.2+
 
