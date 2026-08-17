@@ -31,12 +31,14 @@ grows without a rewrite. This file records *what was deferred and why* so nothin
 - **Phase 1 (coverage):** USAJOBS federal connector (free-key-gated) + registry expansion (ConnectWise/Tampa).
 - **Phase 2 (application tracking):** notes, auto-logged status events, pipeline Applied tab, Stage selector.
 - **Phase 3 (auto-sync + UI):** background sync (startup-if-stale + every 4h), collapsible simplified cards.
+- **Phase 4 (sync UX + sort/salary):** non-blocking /sync (fire-and-forget + status poll), sort (match/newest/salary) + min-salary floor, salary on cards; fixed far-hybrid location leak.
 
 ## V1.1 (after the core is proven in daily use)
 
 Local embeddings + semantic rerank · GitHub repo importer · resume re-import · scam/trust engine
 (arrives with the first untrusted source) · FTS5 · precise geocoding ·
-Alembic baseline · salary filters · daily digest.
+Alembic baseline · daily digest · "N new jobs" live-refresh banner · freshness/stale pruning
+(spec §28 — jobs that fall out of filters currently persist until manually cleaned).
 
 ## V1.2+
 
