@@ -19,8 +19,8 @@ class NoteIn(BaseModel):
 from .. import APP_VERSION, SCHEMA_VERSION
 from ..config import load_profile
 from ..db import SessionLocal
-from ..ingestion.pipeline import run_ingestion
 from ..models import SyncState
+from ..sync_manager import is_running, start_sync
 from ..repository import SQLiteJobRepository
 from ..schemas import CandidateProfile, CanonicalJob, JobDetail, JobListItem
 
@@ -40,6 +40,7 @@ def _list_item(job: CanonicalJob, profile: CandidateProfile) -> JobListItem:
         workplace_type=job.workplace_type, remote=job.remote,
         location_name=job.location_name, date_posted=job.date_posted,
         relevance_score=job.relevance_score, priority_score=job.priority_score,
+        salary_min=job.salary_min, salary_max=job.salary_max,
         top_skills=_top_skills(job, profile), flags=job.flags, status=job.status,
     )
 
@@ -48,8 +49,8 @@ def _detail(job: CanonicalJob, profile: CandidateProfile) -> JobDetail:
     return JobDetail(
         **_list_item(job, profile).model_dump(),
         description_text=job.description_text, company_domain=job.company_domain,
-        employment_type=job.employment_type, salary_min=job.salary_min,
-        salary_max=job.salary_max, salary_currency=job.salary_currency,
+        employment_type=job.employment_type,          # salary_min/max come via _list_item dump
+        salary_currency=job.salary_currency,
         salary_interval=job.salary_interval, seniority=job.seniority,
         detected_skills=job.detected_skills, score_breakdown=job.score_breakdown,
         apply_url=job.apply_url, canonical_url=job.canonical_url, source_type=job.source_type,
@@ -73,6 +74,8 @@ def list_jobs(
     status_in: Optional[str] = None,          # CSV; e.g. the Applied tab's pipeline set
     remote_only: bool = False,
     min_score: Optional[int] = None,
+    min_salary: Optional[int] = None,
+    sort: str = "priority",                   # priority | newest | salary
     include_suppressed: bool = False,
     limit: int = Query(500, le=2000),
 ):
@@ -82,7 +85,8 @@ def list_jobs(
         (min_score if min_score is not None else profile.minimum_score)
     jobs = repo.list_jobs(
         query=q, status=status, status_in=grouped, remote_only=remote_only,
-        min_score=scored, include_suppressed=include_suppressed, limit=limit,
+        min_score=scored, min_salary=min_salary, sort=sort,
+        include_suppressed=include_suppressed, limit=limit,
     )
     return [_list_item(j, profile) for j in jobs]
 
@@ -162,4 +166,11 @@ def sources():
 
 @router.post("/sync")
 def sync():
-    return run_ingestion(repo=repo, profile=load_profile())
+    """Fire-and-forget: kicks the crawl into a background thread and returns immediately."""
+    started = start_sync("manual")
+    return {"started": started, "running": is_running()}
+
+
+@router.get("/sync/status")
+def sync_status():
+    return {"running": is_running()}

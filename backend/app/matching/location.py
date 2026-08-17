@@ -109,7 +109,8 @@ def evaluate(job: CanonicalJob, profile: CandidateProfile) -> tuple[float, bool,
             return 0.5, False, "Hybrid, location unknown"
         if dist <= profile.radius_miles:
             return 1.0, False, f"Hybrid, {dist:.0f} mi"
-        return 0.4, False, f"Hybrid but {dist:.0f} mi away"
+        # hybrid = some in-office days, so a far hybrid role is as impractical as far onsite -> drop
+        return 0.0, True, f"Hybrid {dist:.0f} mi away (outside {profile.radius_miles} mi)"
 
     # onsite / unknown workplace type -> treat as onsite
     if not profile.include_onsite and job.workplace_type == "onsite":

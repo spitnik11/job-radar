@@ -111,8 +111,10 @@ class SQLiteJobRepository:
         include_suppressed: bool = False,
         include_dismissed: bool = False,
         min_score: Optional[int] = None,
+        min_salary: Optional[int] = None,
         remote_only: bool = False,
         query: Optional[str] = None,
+        sort: str = "priority",
         limit: int = 500,
     ) -> list[CanonicalJob]:
         stmt = select(Job)
@@ -127,6 +129,9 @@ class SQLiteJobRepository:
                 stmt = stmt.where(Job.status.notin_(["DISMISSED", "IGNORED"]))
         if min_score is not None:
             stmt = stmt.where(Job.relevance_score >= min_score)
+        if min_salary:
+            # keep jobs at/above the floor AND jobs with no salary data (don't hide the unknowns)
+            stmt = stmt.where(or_(Job.salary_max.is_(None), Job.salary_max >= min_salary))
         if remote_only:
             stmt = stmt.where(Job.remote.is_(True))
         if query:
@@ -138,7 +143,13 @@ class SQLiteJobRepository:
                     Job.description_text.ilike(like),
                 )
             )
-        stmt = stmt.order_by(Job.priority_score.desc(), Job.relevance_score.desc()).limit(limit)
+        if sort == "newest":
+            stmt = stmt.order_by(Job.date_posted.desc().nullslast(), Job.priority_score.desc())
+        elif sort == "salary":
+            stmt = stmt.order_by(Job.salary_max.desc().nullslast(), Job.priority_score.desc())
+        else:
+            stmt = stmt.order_by(Job.priority_score.desc(), Job.relevance_score.desc())
+        stmt = stmt.limit(limit)
         with SessionLocal() as s:
             return [_to_canonical(r) for r in s.execute(stmt).scalars()]
 

@@ -129,6 +129,8 @@ class JobListItem(BaseModel):
     date_posted: Optional[datetime]
     relevance_score: int
     priority_score: int
+    salary_min: Optional[float] = None
+    salary_max: Optional[float] = None
     top_skills: list[str]
     flags: list[str]
     status: JobStatus

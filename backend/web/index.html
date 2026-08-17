@@ -179,7 +179,7 @@
     <button class="navitem on" data-nav="jobs"><span class="ic" id="ic-home"></span><span class="lab">Home</span><span class="badge" id="b-jobs"></span></button>
     <button class="navitem" data-nav="saved"><span class="ic" id="ic-save"></span><span class="lab">Saved</span><span class="badge" id="b-saved"></span></button>
     <button class="navitem" data-nav="applied"><span class="ic" id="ic-apply"></span><span class="lab">Applied</span><span class="badge" id="b-applied"></span></button>
-    <button class="sync" id="sync" title="Fetch the latest job postings from all sources right now">Sync new jobs</button>
+    <button class="sync" id="sync" title="Fetch the latest job postings from all sources (runs in the background)">Sync</button>
     <div class="navfoot" id="foot">v0.1</div>
   </nav>
 
@@ -200,6 +200,12 @@
       <label class="frow">Remote only<span class="switch"><input type="checkbox" id="remote"><span class="slider"></span></span></label>
       <label class="frow">Minimum match
         <select id="minscore"><option value="0">Any</option><option value="65" selected>65+</option><option value="75">75+</option><option value="85">85+</option></select>
+      </label>
+      <label class="frow">Sort by
+        <select id="sort"><option value="priority" selected>Best match</option><option value="newest">Newest</option><option value="salary">Salary</option></select>
+      </label>
+      <label class="frow">Min salary
+        <select id="minsalary"><option value="0" selected>Any</option><option value="60000">$60k+</option><option value="80000">$80k+</option><option value="100000">$100k+</option><option value="120000">$120k+</option></select>
       </label>
       <label class="frow">Show hidden<span class="switch"><input type="checkbox" id="hidden"><span class="slider"></span></span></label>
     </div>
@@ -249,6 +255,8 @@ async function load(){
     if(document.getElementById('hidden').checked) p.set('include_suppressed','true');
   } else if(tab==='saved') p.set('status','SAVED');
   else if(tab==='applied') p.set('status_in', PIPELINE.join(','));
+  p.set('sort', document.getElementById('sort').value);
+  const ms=document.getElementById('minsalary').value; if(ms!=='0') p.set('min_salary', ms);
   jobs=await api('/jobs?'+p.toString());
   sel=-1; view='feed'; renderHead(); renderFeed(); refreshBadges();
 }
@@ -272,9 +280,14 @@ function actionBar(j){
   </div>`;
 }
 
+function money(j){
+  if(!j.salary_min) return '';
+  const k=v=>'$'+Math.round(v/1000)+'K';
+  return ' · '+k(j.salary_min)+(j.salary_max&&j.salary_max!==j.salary_min?'–'+k(j.salary_max):'');
+}
 function card(j){
   const [cls]=band(j.relevance_score);
-  const loc=j.remote?'Remote':(j.location_name||j.workplace_type||'—');
+  const loc=(j.remote?'Remote':(j.location_name||j.workplace_type||'—'))+money(j);
   const open=expanded.has(j.id);
   const more = open ? `<div class="more">${
     j._desc===undefined ? '<span class="tempty">Loading…</span>'
@@ -411,7 +424,7 @@ document.querySelector('.center').addEventListener('click',e=>{
   const c=e.target.closest('.card'); if(c) toggleCard(c.dataset.id);   // one click = expand/collapse
 });
 
-function setTab(t){ tab=t; sel=-1;
+function setTab(t){ tab=t; sel=-1; expanded.clear();   // Home/tab click = collapse, scroll top, refresh feed
   document.querySelectorAll('.navitem').forEach(b=>b.classList.toggle('on',b.dataset.nav===t));
   window.scrollTo(0,0); load(); }
 document.querySelectorAll('.navitem').forEach(b=>b.onclick=()=>setTab(b.dataset.nav));
@@ -435,14 +448,21 @@ async function renderSources(){
 }
 
 document.getElementById('sync').onclick=async e=>{
-  const b=e.target; b.disabled=true; b.textContent='Fetching jobs…';
-  const r=await api('/sync',{method:'POST'});
-  b.disabled=false; b.textContent='Sync new jobs';
-  await renderSources(); load();
+  const b=e.target; b.disabled=true; b.textContent='Syncing…';
+  await api('/sync',{method:'POST'});          // returns immediately; crawl runs in the background
+  let tries=0;
+  const iv=setInterval(async()=>{
+    tries++;
+    let running=false; try{ running=(await api('/sync/status')).running; }catch(_){}
+    if(!running || tries>100){                  // stop when done, or after ~5 min safety
+      clearInterval(iv); b.disabled=false; b.textContent='Sync';
+      await renderSources(); load();
+    }
+  },3000);
 };
 
 let t; document.getElementById('q').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(load,220);});
-['remote','minscore','hidden'].forEach(id=>document.getElementById(id).addEventListener('change',load));
+['remote','minscore','hidden','sort','minsalary'].forEach(id=>document.getElementById(id).addEventListener('change',load));
 
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'){ if(e.key==='Escape')e.target.blur(); return; }

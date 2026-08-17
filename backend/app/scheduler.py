@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 
 from .db import SessionLocal
-from .ingestion.pipeline import run_ingestion
 from .models import SyncState
+from .sync_manager import start_sync
 
 AUTO_SYNC_SECONDS = 4 * 3600      # every 4 hours while running
 STARTUP_STALE_SECONDS = 3600      # only sync on startup if the last sync is > 1h old
@@ -28,21 +28,13 @@ def _seconds_since_last_sync():
     return (datetime.now(timezone.utc) - newest).total_seconds()
 
 
-def _safe_sync(reason: str):
-    try:
-        r = run_ingestion()      # serialized against manual /sync via the pipeline lock
-        print(f"[auto-sync/{reason}] stored {r['stored']} jobs")
-    except Exception as exc:      # noqa: BLE001 — a failed refresh must never kill the thread
-        print(f"[auto-sync/{reason}] failed: {exc}")
-
-
 def _loop():
     age = _seconds_since_last_sync()
     if age is None or age > STARTUP_STALE_SECONDS:
-        _safe_sync("startup")
+        start_sync("startup")                     # non-blocking; skips if one is already running
     while True:
         time.sleep(AUTO_SYNC_SECONDS)
-        _safe_sync("scheduled")
+        start_sync("scheduled")
 
 
 def start_background_sync():
