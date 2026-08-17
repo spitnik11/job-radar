@@ -6,6 +6,7 @@ Run standalone:  python -m app.ingestion.pipeline
 
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timezone
 
 import httpx
@@ -41,8 +42,18 @@ def _enrich(job: CanonicalJob) -> None:
         job.suppressed, job.suppress_reason = True, supp_reason
 
 
+_SYNC_LOCK = threading.Lock()
+
+
 def run_ingestion(repo: SQLiteJobRepository | None = None,
                   profile: CandidateProfile | None = None) -> dict:
+    """Serialized so a manual /sync and the background scheduler never overlap."""
+    with _SYNC_LOCK:
+        return _ingest(repo, profile)
+
+
+def _ingest(repo: SQLiteJobRepository | None,
+            profile: CandidateProfile | None) -> dict:
     repo = repo or SQLiteJobRepository()
     profile = profile or load_profile()
     engine = RuleBasedMatchEngine()

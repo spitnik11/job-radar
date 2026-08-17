@@ -10,13 +10,15 @@ from fastapi.responses import FileResponse
 
 from .api.v1 import router as api_v1
 from .db import init_db
+from .scheduler import start_background_sync
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    init_db()          # create tables + stamp schema_version before serving
+    init_db()               # create tables + stamp schema_version before serving
+    start_background_sync()  # refresh on startup (if stale) then every 4h, in a daemon thread
     yield
 
 

@@ -75,6 +75,12 @@
   .ctop{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
   .ctop .t{font-weight:700;font-size:15px;color:var(--ink);letter-spacing:-.01em}
   .ctop .co,.ctop .dot,.ctop .tm{color:var(--subtle);font-size:14px}
+  .cloc{font-size:13px;color:var(--muted);margin-top:2px}
+  .card.open{background:var(--hover)}
+  .more{font-size:14px;line-height:1.6;color:var(--ink);white-space:pre-wrap;margin:10px 0 4px;
+    max-width:64ch;border-left:2px solid var(--hair);padding-left:12px}
+  .more .tempty{color:var(--subtle)}
+  .submeta{font-size:12px;color:var(--subtle);margin:-4px 0 12px;line-height:1.5}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0 2px}
   .chip{font-size:12px;color:var(--muted);background:var(--lift);border:1px solid var(--hair-soft);
     padding:2px 9px;border-radius:9999px}
@@ -173,7 +179,7 @@
     <button class="navitem on" data-nav="jobs"><span class="ic" id="ic-home"></span><span class="lab">Home</span><span class="badge" id="b-jobs"></span></button>
     <button class="navitem" data-nav="saved"><span class="ic" id="ic-save"></span><span class="lab">Saved</span><span class="badge" id="b-saved"></span></button>
     <button class="navitem" data-nav="applied"><span class="ic" id="ic-apply"></span><span class="lab">Applied</span><span class="badge" id="b-applied"></span></button>
-    <button class="sync" id="sync">Sync</button>
+    <button class="sync" id="sync" title="Fetch the latest job postings from all sources right now">Sync new jobs</button>
     <div class="navfoot" id="foot">v0.1</div>
   </nav>
 
@@ -199,6 +205,7 @@
     </div>
     <div class="panel">
       <h3>Sources</h3>
+      <div class="submeta">Auto-refreshes every 4h · “Sync new jobs” pulls fresh right now</div>
       <div id="sources"><div class="hint">No sync yet.</div></div>
     </div>
     <div class="hint">j / k&nbsp;&nbsp;move &nbsp;·&nbsp; s&nbsp;save &nbsp;·&nbsp; a&nbsp;apply<br>x&nbsp;dismiss &nbsp;·&nbsp; enter&nbsp;open &nbsp;·&nbsp; /&nbsp;search</div>
@@ -261,28 +268,46 @@ function actionBar(j){
     <button class="act save ${saved?'on':''}" data-act="save" data-id="${j.id}" title="Save"><span class="ic">${ICON.bookmark}</span></button>
     <button class="act apply ${applied?'on':''}" data-act="apply" data-id="${j.id}" title="${applied?'Applied':'Apply'}"><span class="ic">${ICON.send}</span>${applied?'Applied':''}</button>
     <button class="act dismiss" data-act="dismiss" data-id="${j.id}" title="Not interested"><span class="ic">${ICON.x}</span></button>
-    <button class="act why spacer" data-act="open" data-id="${j.id}">Why ${j.relevance_score}% ›</button>
+    <button class="act why spacer" data-act="details" data-id="${j.id}">Details ›</button>
   </div>`;
 }
 
 function card(j){
-  const [cls,lab]=band(j.relevance_score);
-  const loc=j.remote?'Remote':(j.location_name||j.workplace_type||'');
-  const chips=(j.top_skills||[]).slice(0,4).map(s=>`<span class="chip">${esc(s.replace(/_/g,' '))}</span>`).join('');
-  const flags=(j.flags||[]).map(f=>{
-    if(f==='remote')return `<span class="flag rem">remote</span>`;
-    if(f==='scam-risk')return `<span class="flag warn">⚠ recruiter risk</span>`;
-    if(f==='senior'||/yrs/.test(f))return `<span class="flag warn">${esc(f)}</span>`;
-    return '';}).join('');
-  const st=(j.status!=='NEW'&&j.status!=='VIEWED')?`<span class="dot">·</span><span class="tm">${j.status.toLowerCase()}</span>`:'';
-  return `<div class="card" data-id="${j.id}">
-    <div class="ring ${cls}"><span class="n">${j.relevance_score}</span><span class="l">${lab}</span></div>
+  const [cls]=band(j.relevance_score);
+  const loc=j.remote?'Remote':(j.location_name||j.workplace_type||'—');
+  const open=expanded.has(j.id);
+  const more = open ? `<div class="more">${
+    j._desc===undefined ? '<span class="tempty">Loading…</span>'
+    : (j._desc ? esc(j._desc).slice(0,900)+(j._desc.length>900?'…':'') : '<span class="tempty">No description provided.</span>')
+  }</div>` : '';
+  return `<div class="card ${open?'open':''}" data-id="${j.id}">
+    <div class="ring ${cls}"><span class="n">${j.relevance_score}</span></div>
     <div class="cbody">
-      <div class="ctop"><span class="t">${esc(j.title)}</span><span class="co">${esc(j.company_name)}</span>
-        <span class="dot">·</span><span class="tm">${ago(j.date_posted)} ago</span>${st}</div>
-      <div class="chips">${chips}${flags}</div>
+      <div class="ctop"><span class="t">${esc(j.title)}</span><span class="co">${esc(j.company_name)}</span></div>
+      <div class="cloc">${esc(loc)}</div>
+      ${more}
       ${actionBar(j)}
     </div></div>`;
+}
+
+const expanded=new Set();
+async function toggleCard(id){
+  const j=jobs.find(x=>x.id===id); if(!j) return;
+  if(expanded.has(id)){ expanded.delete(id); }
+  else{
+    expanded.add(id);
+    if(j._desc===undefined){                       // lazy-load the description on first expand
+      renderOneCard(id);                            // show "Loading…" immediately
+      const d=await api('/jobs/'+encodeURIComponent(id));
+      j._desc=d.description_text||''; if(j.status==='NEW') j.status='VIEWED';
+    }
+  }
+  renderOneCard(id);
+}
+function renderOneCard(id){
+  const j=jobs.find(x=>x.id===id);
+  const el=document.querySelector('.card[data-id="'+id+'"]');
+  if(el&&j) el.outerHTML=card(j);
 }
 
 function renderFeed(){
@@ -380,8 +405,10 @@ async function doAction(act, id){
 document.querySelector('.center').addEventListener('click',e=>{
   const a=e.target.closest('[data-act]');
   if(a){ e.stopPropagation(); const act=a.dataset.act;
-    if(act==='back') back(); else if(act==='open') openDetail(a.dataset.id); else doAction(act,a.dataset.id); return; }
-  const c=e.target.closest('.card'); if(c) openDetail(c.dataset.id);
+    if(act==='back') back();
+    else if(act==='details'||act==='open') openDetail(a.dataset.id);
+    else doAction(act,a.dataset.id); return; }
+  const c=e.target.closest('.card'); if(c) toggleCard(c.dataset.id);   // one click = expand/collapse
 });
 
 function setTab(t){ tab=t; sel=-1;
@@ -408,9 +435,9 @@ async function renderSources(){
 }
 
 document.getElementById('sync').onclick=async e=>{
-  const b=e.target; b.disabled=true; b.textContent='Syncing…';
+  const b=e.target; b.disabled=true; b.textContent='Fetching jobs…';
   const r=await api('/sync',{method:'POST'});
-  b.disabled=false; b.textContent='Sync';
+  b.disabled=false; b.textContent='Sync new jobs';
   await renderSources(); load();
 };
 
@@ -424,7 +451,7 @@ document.addEventListener('keydown',e=>{
   if(view!=='feed'||!jobs.length) return;
   if(e.key==='j'||e.key==='ArrowDown'){ e.preventDefault(); sel=Math.min(sel+1,jobs.length-1); highlight(); }
   else if(e.key==='k'||e.key==='ArrowUp'){ e.preventDefault(); sel=Math.max(sel-1,0); highlight(); }
-  else if(e.key==='Enter'&&sel>=0){ openDetail(jobs[sel].id); }
+  else if(e.key==='Enter'&&sel>=0){ toggleCard(jobs[sel].id); }
   else if(sel>=0&&['s','a','x'].includes(e.key)){ doAction({s:'save',a:'apply',x:'dismiss'}[e.key], jobs[sel].id); }
 });
 function highlight(){ const cards=[...document.querySelectorAll('.card')];
