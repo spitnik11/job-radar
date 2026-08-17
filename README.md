@@ -12,7 +12,7 @@ plausibly qualified, is it worth applying now?*
 
 Working end-to-end today:
 
-- **Sources:** Greenhouse, Lever, Ashby (public JSON, no auth) over a seed company registry
+- **Sources:** Greenhouse, Lever, Ashby (public JSON, no auth) + **USAJOBS** (federal, opt-in free key) over a seed registry
 - **Pipeline:** fetch → normalize → enrich (skills / experience / seniority) → hard-scam guard →
   explainable score → location + seniority filter → exact-URL dedupe → SQLite (WAL)
 - **Matching:** deterministic weighted score (role/skills/experience/portfolio/location/education/
@@ -41,7 +41,18 @@ Run the tests: `.\.venv\Scripts\python -m pytest`
 
 - `data/profile.yaml` — skills, weights, education, home city (already seeded from the resume)
 - `data/settings.yaml` — radius (45 mi), remote/hybrid/onsite, min score, target roles
-- `data/companies.yaml` — the seed ATS boards; **add local Tampa Bay employers here** to grow coverage
+- `data/companies.yaml` — the seed ATS boards; **add local Tampa Bay employers here** to grow coverage (ConnectWise is already in)
+
+### Turn on federal jobs (USAJOBS) — strong fit for Tampa IT
+
+USAJOBS covers MacDill AFB, SOCOM/CENTCOM and VA roles — heavy on entry-level IT support. It needs
+a **free** key:
+
+1. Request one (instant): https://developer.usajobs.gov/apirequest/
+2. `cp backend/data/secrets.local.example.yaml backend/data/secrets.local.yaml` and paste your key +
+   registered email (that file is gitignored). Or set env vars `USAJOBS_API_KEY` / `USAJOBS_EMAIL`.
+3. Sync. Without a key the source is inert (no error). Search keywords live under `usajobs:` in
+   `companies.yaml`; location + radius come from your profile.
 
 ## Layout
 

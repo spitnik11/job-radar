@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
@@ -45,6 +47,16 @@ def load_profile() -> CandidateProfile:
         minimum_score=search.get("minimum_score", 65),
         max_required_years=search.get("max_required_years", 5),
     )
+
+
+def load_usajobs_creds() -> tuple[Optional[str], Optional[str]]:
+    """USAJOBS key + registered email. Local gitignored file first, then env vars. Never committed."""
+    secrets = DATA_DIR / "secrets.local.yaml"
+    if secrets.exists():
+        u = (yaml.safe_load(secrets.read_text(encoding="utf-8")) or {}).get("usajobs") or {}
+        if u.get("api_key") and u.get("email"):
+            return u["api_key"], u["email"]
+    return os.environ.get("USAJOBS_API_KEY"), os.environ.get("USAJOBS_EMAIL")
 
 
 @lru_cache(maxsize=1)

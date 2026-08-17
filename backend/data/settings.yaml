@@ -40,3 +40,4 @@ sources:
   greenhouse: true
   lever: true
   ashby: true
+  usajobs: true      # inert until you add a free API key (see README / data/secrets.local.example.yaml)

@@ -18,6 +18,16 @@ greenhouse:
   - { token: coinbase, name: Coinbase, domain: coinbase.com }
   - { token: elastic, name: Elastic, domain: elastic.co }
   - { token: discord, name: Discord, domain: discord.com }
+  - { token: connectwise, name: ConnectWise, domain: connectwise.com }   # Tampa, FL HQ
+  - { token: appspace, name: Appspace, domain: appspace.com }            # Tampa-area
+  - { token: datadog, name: Datadog, domain: datadoghq.com }
+  - { token: okta, name: Okta, domain: okta.com }
+  - { token: mongodb, name: MongoDB, domain: mongodb.com }
+  - { token: grafanalabs, name: Grafana Labs, domain: grafana.com }
+  - { token: newrelic, name: New Relic, domain: newrelic.com }
+  - { token: pagerduty, name: PagerDuty, domain: pagerduty.com }
+  - { token: clickhouse, name: ClickHouse, domain: clickhouse.com }
+  - { token: webflow, name: Webflow, domain: webflow.com }
 
 lever:
   - { token: spotify, name: Spotify, domain: spotify.com }
@@ -32,3 +42,19 @@ ashby:
   - { token: cursor, name: Cursor, domain: cursor.com }
   - { token: posthog, name: PostHog, domain: posthog.com }
   - { token: hex, name: Hex, domain: hex.tech }
+  - { token: supabase, name: Supabase, domain: supabase.com }
+  - { token: perplexity, name: Perplexity, domain: perplexity.ai }
+  - { token: cohere, name: Cohere, domain: cohere.com }
+  - { token: baseten, name: Baseten, domain: baseten.co }
+  - { token: modal, name: Modal, domain: modal.com }
+
+# USAJOBS is query-driven, not company-scoped: each token is a search KEYWORD. Location + radius
+# come from profile.yaml/settings.yaml. Needs a free key (see README) — inert without one.
+usajobs:
+  - { token: information technology specialist, name: USAJOBS }
+  - { token: it specialist, name: USAJOBS }
+  - { token: help desk, name: USAJOBS }
+  - { token: technical support, name: USAJOBS }
+  - { token: systems administrator, name: USAJOBS }
+  - { token: software developer, name: USAJOBS }
+  - { token: application, name: USAJOBS }

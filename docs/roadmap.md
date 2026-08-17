@@ -21,7 +21,8 @@ grows without a rewrite. This file records *what was deferred and why* so nothin
 | SQLite FTS5 | A few thousand jobs fit in memory; `LIKE` is enough | when volume demands it |
 | Embeddings / semantic rerank | Deterministic scoring must work with no AI (core principle) | V1.1, as enhancement |
 | Alembic | No data worth migrating yet; `schema_version` is stamped so the baseline is clean | first real schema change |
-| USAJOBS / SmartRecruiters | Need a key / different shape; 3 no-auth ATSes prove the interface first | V1.1 |
+| ~~USAJOBS~~ | **Done (Phase 1)** — federal connector, query-driven, env/secrets-gated free key | shipped |
+| SmartRecruiters | Company tokens hard to discover (200-with-0 for wrong ids) and the list API has no descriptions (N+1 detail fetch); low ROI vs USAJOBS | when a needed employer uses it |
 | Precise geocoding | Static Tampa-Bay city table covers the commute market | V1.1 (Nominatim) |
 | Resume parsing | Spec §5-7 already extracts the taxonomy → `profile.yaml` | V1.1 (re-import) |
 

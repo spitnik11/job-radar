@@ -3,6 +3,7 @@
 from app.connectors.ashby import AshbyConnector
 from app.connectors.greenhouse import GreenhouseConnector
 from app.connectors.lever import LeverConnector
+from app.connectors.usajobs import UsaJobsConnector
 from app.interfaces import RawJob
 
 
@@ -56,3 +57,32 @@ def test_ashby_normalize():
     assert job.id == "ashby:acme:z9"
     assert job.remote is True and job.employment_type == "full_time"
     assert job.date_posted is not None
+
+
+def test_usajobs_normalize():
+    descriptor = {
+        "PositionID": "ARMY-123", "PositionTitle": "IT Specialist (Customer Support)",
+        "PositionURI": "https://www.usajobs.gov/job/800000",
+        "ApplyURI": ["https://www.usajobs.gov/job/800000/apply"],
+        "OrganizationName": "U.S. Army Cyber Command", "DepartmentName": "Department of the Army",
+        "PositionLocation": [{"LocationName": "MacDill AFB, Florida",
+                              "CityName": "Tampa, Florida", "CountrySubDivisionCode": "Florida"}],
+        "PositionLocationDisplay": "Tampa, Florida",
+        "PositionSchedule": [{"Name": "Full-time"}],
+        "PositionRemuneration": [{"MinimumRange": "49025", "MaximumRange": "78029",
+                                  "RateIntervalCode": "Per Year"}],
+        "PublicationStartDate": "2026-08-10", "ApplicationCloseDate": "2026-08-24",
+        "UserArea": {"Details": {
+            "JobSummary": "Provide help desk and troubleshooting support for Windows and Microsoft 365.",
+            "RemoteIndicator": False, "QualificationSummary": "1 year of specialized experience."}},
+    }
+    # source_job_id = MatchedObjectId (used for the stable id, dedupes across keyword searches)
+    job = UsaJobsConnector().normalize(_raw("usajobs", "federal", "MOI-1", descriptor))
+    assert job.id == "usajobs:federal:MOI-1"
+    assert job.title.startswith("IT Specialist")
+    assert job.company_name == "U.S. Army Cyber Command"
+    assert job.location_name == "Tampa, Florida" and job.region == "Florida"
+    assert job.salary_min == 49025 and job.salary_interval == "year"
+    assert job.employment_type == "full_time"
+    assert "help desk" in job.description_text.lower()
+    assert job.date_posted is not None and job.valid_through is not None
