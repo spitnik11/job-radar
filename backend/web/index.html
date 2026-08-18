@@ -318,7 +318,7 @@ async function checkNew(){
   const el=document.getElementById('newbanner');
   if(c>0){
     el.innerHTML='<button>↑ Show '+c+' new job'+(c>1?'s':'')+'</button>';
-    el.querySelector('button').onclick=()=>{ window.scrollTo(0,0); load(); };
+    el.querySelector('button').onclick=()=>{ el.hidden=true; window.scrollTo(0,0); load(); };  // hide now, then refresh
     el.hidden=false;
   } else el.hidden=true;
 }

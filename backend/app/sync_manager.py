@@ -12,6 +12,7 @@ from .ingestion.pipeline import run_ingestion
 
 _lock = threading.Lock()
 _running = False
+_warming = False
 _last_error: str | None = None
 
 
@@ -36,12 +37,32 @@ def _run(reason: str):
         r = run_ingestion()
         _last_error = None
         print(f"[sync/{reason}] stored {r['stored']} jobs")
-        from . import semantic                    # warm top embeddings so /rerank is instant
-        if semantic.enabled():
-            from .repository import SQLiteJobRepository
-            print(f"[sync/{reason}] warmed {semantic.warm_top(SQLiteJobRepository(), 200)} embeddings")
     except Exception as exc:  # noqa: BLE001 — a failed sync must not wedge the flag
         _last_error = str(exc)
         print(f"[sync/{reason}] failed: {exc}")
     finally:
-        _running = False
+        _running = False                 # crawl done -> the Sync button un-sticks NOW
+    _start_warm(reason)                  # embedding warm runs AFTER, on its own flag (can take minutes)
+
+
+def _start_warm(reason: str) -> None:
+    """Warm embeddings in a SEPARATE thread so it never holds the sync 'running' flag
+    (warming 200 jobs at ~2s each would otherwise pin the Sync button for minutes)."""
+    global _warming
+    from . import semantic
+    if not semantic.enabled() or _warming:
+        return
+    _warming = True
+
+    def _worker():
+        global _warming
+        try:
+            from .repository import SQLiteJobRepository
+            n = semantic.warm_top(SQLiteJobRepository(), 120)
+            print(f"[warm/{reason}] warmed {n} embeddings")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[warm/{reason}] failed: {exc}")
+        finally:
+            _warming = False
+
+    threading.Thread(target=_worker, daemon=True, name="job-radar-warm").start()

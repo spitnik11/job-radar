@@ -7,6 +7,7 @@ the visible top. Job embeddings are cached to disk so each job is embedded once.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from typing import Optional
@@ -55,8 +56,9 @@ def _save_cache() -> None:
 def embed(text: str) -> Optional[list[float]]:
     endpoint, model, _ = _cfg()
     try:
+        # short timeout: a down/slow Ollama must fail fast, never hang a request or the warm
         r = httpx.post(f"{endpoint}/api/embeddings",
-                       json={"model": model, "prompt": text[:2000]}, timeout=30)
+                       json={"model": model, "prompt": text[:2000]}, timeout=8)
         if r.status_code == 200:
             return r.json().get("embedding") or None
     except httpx.HTTPError:
@@ -83,10 +85,20 @@ def profile_text(p: CandidateProfile) -> str:
 
 def profile_embedding(p: CandidateProfile) -> Optional[list[float]]:
     txt = profile_text(p)
-    if txt not in _profile_emb:
-        _profile_emb.clear()
-        _profile_emb[txt] = embed(txt)
-    return _profile_emb[txt]
+    if txt in _profile_emb:
+        return _profile_emb[txt]
+    # persist across sessions so the first rerank isn't a cold 2s embed
+    key = "__profile__:" + hashlib.md5(txt.encode("utf-8")).hexdigest()[:12]
+    cache = _load_cache()
+    v = cache.get(key)
+    if v is None:
+        v = embed(txt)
+        if v is not None:
+            cache[key] = v
+            _save_cache()
+    _profile_emb.clear()
+    _profile_emb[txt] = v
+    return v
 
 
 def rerank(items: list[dict], profile: CandidateProfile) -> dict:
