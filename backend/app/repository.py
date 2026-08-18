@@ -130,10 +130,13 @@ class SQLiteJobRepository:
         else:
             if not include_suppressed:
                 stmt = stmt.where(Job.suppressed.is_(False))
+            # main feed hides jobs you've acted on to completion: dismissed AND applied-and-beyond
+            # (unmarking Applied -> VIEWED brings the job back into the feed)
             if not include_dismissed:
-                stmt = stmt.where(Job.status.notin_(["DISMISSED", "IGNORED"]))
+                stmt = stmt.where(Job.status.notin_(
+                    ["DISMISSED", "IGNORED", "APPLIED", "PHONE_SCREEN", "INTERVIEW",
+                     "FINAL_INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN"]))
             stmt = stmt.where(Job.freshness != "EXPIRED")   # hide closed postings from the main feed
-            # (Saved/Applied tabs use status filters above, so expired jobs you acted on still show)
         if min_score is not None:
             stmt = stmt.where(Job.relevance_score >= min_score)
         if min_salary:
@@ -164,6 +167,10 @@ class SQLiteJobRepository:
             stmt = stmt.order_by(Job.date_posted.desc().nullslast(), Job.priority_score.desc())
         elif sort == "salary":
             stmt = stmt.order_by(Job.salary_max.desc().nullslast(), Job.priority_score.desc())
+        elif sort == "score":                          # Job Score (match %), high -> low
+            stmt = stmt.order_by(Job.relevance_score.desc(), Job.priority_score.desc())
+        elif sort == "score_asc":                      # Job Score, low -> high
+            stmt = stmt.order_by(Job.relevance_score.asc(), Job.priority_score.desc())
         else:
             stmt = stmt.order_by(Job.priority_score.desc(), Job.relevance_score.desc())
         stmt = stmt.limit(limit)

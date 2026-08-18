@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Job Radar</title>
+<title>Jobber</title>
 <style>
   :root{
     --canvas:#f7f6f4; --surface:#ffffff; --lift:#f0efec; --ink:#1c1c1e; --muted:#6b6b70; --subtle:#9a9aa0;
@@ -27,6 +27,12 @@
   button{font-family:inherit;cursor:pointer;color:inherit}
   a{color:var(--accent);text-decoration:none}
   ::selection{background:var(--accent-soft)}
+  /* subtle scrollbars that match the theme (esp. the right sidebar's secondary scrollbar) */
+  html{scrollbar-width:thin;scrollbar-color:var(--hair) transparent}
+  *::-webkit-scrollbar{width:9px;height:9px}
+  *::-webkit-scrollbar-track{background:transparent}
+  *::-webkit-scrollbar-thumb{background:var(--hair);border-radius:9999px;border:2px solid transparent;background-clip:padding-box}
+  *::-webkit-scrollbar-thumb:hover{background:var(--subtle)}
   svg{display:block}
 
   .app{display:flex;justify-content:center;gap:0;max-width:1290px;margin:0 auto}
@@ -34,10 +40,12 @@
   /* ---------- left nav ---------- */
   nav{width:260px;flex:none;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
     padding:6px 10px 16px;border-right:1px solid var(--hair)}
-  .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:19px;letter-spacing:-.01em;
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:21px;letter-spacing:-.02em;
     padding:12px 12px 16px}
-  .brand .dot{width:16px;height:16px;border-radius:50%;background:var(--accent);flex:none;
-    box-shadow:0 0 0 5px var(--accent-soft)}
+  .brand .logo{width:30px;height:30px;object-fit:contain;flex:none}
+  @media (prefers-color-scheme:dark){ .brand .logo{filter:invert(1)} }   /* black line-art -> white on dark */
+  :root[data-theme="dark"] .brand .logo{filter:invert(1)}
+  :root[data-theme="light"] .brand .logo{filter:none}
   .navitem{display:flex;align-items:center;gap:16px;padding:11px 14px;border-radius:9999px;font-size:19px;
     color:var(--ink);border:0;background:transparent;width:100%;text-align:left;line-height:1}
   .navitem:hover{background:var(--hover)}
@@ -49,15 +57,11 @@
     font-size:16px;font-weight:700;letter-spacing:.01em}
   .sync:hover{filter:brightness(1.06)} .sync:disabled{opacity:.6;cursor:default}
   .navfoot{margin-top:auto;padding:10px 14px;font-size:12px;color:var(--subtle);font-family:var(--mono)}
-  .streak{margin:14px 8px 0;padding:12px;border:1px solid var(--hair);border-radius:14px;background:var(--surface)}
-  .streak-top{display:flex;align-items:center;gap:11px}
-  .streak .flame{width:40px;height:40px;object-fit:contain;flex:none}
+  .streak{margin:14px 8px 0;padding:14px 12px;border:1px solid var(--hair);border-radius:14px;
+    background:var(--surface);display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center}
+  .streak .flame{width:46px;height:46px;object-fit:contain}
   .streak .flame.cold{filter:grayscale(1) brightness(1.15) opacity(.33)}
-  .streak-meta{min-width:0}
   .streak-count{font-size:14px;font-weight:700;letter-spacing:-.01em}
-  .streak-next{font-size:11px;color:var(--subtle)}
-  .pbar{height:7px;background:var(--lift);border-radius:9999px;overflow:hidden;margin-top:11px}
-  .pbar i{display:block;height:100%;border-radius:9999px;background:linear-gradient(90deg,#ffb03a,#ff5a2c);transition:width .4s}
 
   /* ---------- center stream ---------- */
   .center{width:600px;flex:none;min-height:100vh;border-right:1px solid var(--hair)}
@@ -201,16 +205,16 @@
   .hint{font-size:12px;color:var(--subtle);font-family:var(--mono);line-height:1.7}
 
   @media (max-width:1180px){ aside{display:none} .center{border-right:0} }
-  @media (max-width:820px){ nav{width:72px} .brand span,.navitem .lab,.badge,.navfoot,.streak-meta{display:none}
+  @media (max-width:820px){ nav{width:72px} .brand span,.navitem .lab,.badge,.navfoot,.streak-count{display:none}
     .sync{font-size:0;padding:14px} .sync::after{content:"↻";font-size:18px}
-    .streak{padding:8px} .streak-top{justify-content:center} }
+    .streak{padding:8px} }
 </style>
 </head>
 <body>
 <div class="app">
   <!-- LEFT NAV -->
   <nav>
-    <div class="brand"><span class="dot"></span><span>Job Radar</span></div>
+    <div class="brand"><img class="logo" src="/assets/jobber-cat.png" alt=""><span>Jobber</span></div>
     <button class="navitem on" data-nav="jobs"><span class="ic" id="ic-home"></span><span class="lab">Home</span><span class="badge" id="b-jobs"></span></button>
     <button class="navitem" data-nav="saved"><span class="ic" id="ic-save"></span><span class="lab">Saved</span><span class="badge" id="b-saved"></span></button>
     <button class="navitem" data-nav="applied"><span class="ic" id="ic-apply"></span><span class="lab">Applied</span><span class="badge" id="b-applied"></span></button>
@@ -264,7 +268,7 @@
         <select id="minscore"><option value="0">Any</option><option value="65" selected>65+</option><option value="75">75+</option><option value="85">85+</option></select>
       </label>
       <label class="frow">Sort by
-        <select id="sort"><option value="priority" selected>Best match</option><option value="newest">Newest</option><option value="salary">Salary</option></select>
+        <select id="sort"><option value="priority" selected>Best match</option><option value="score">Job score (high→low)</option><option value="score_asc">Job score (low→high)</option><option value="newest">Newest</option><option value="salary">Salary</option></select>
       </label>
       <label class="frow">Min salary
         <select id="minsalary"><option value="0" selected>Any</option><option value="60000">$60k+</option><option value="80000">$80k+</option><option value="100000">$100k+</option><option value="120000">$120k+</option></select>
@@ -551,13 +555,9 @@ async function refreshBadges(){
 async function renderStreak(){
   const el=document.getElementById('streak'); if(!el) return;
   let s; try{ s=await api('/streak'); }catch(_){ return; }
-  el.innerHTML=`<div class="streak-top">
-      <img class="flame ${s.tier>0?'':'cold'}" src="/assets/streak/flame_${s.flame||1}.png" alt="">
-      <div class="streak-meta">
-        <div class="streak-count">${s.count} applied</div>
-        <div class="streak-next">${s.remaining>0?s.remaining+' to next 🔥':'max streak!'}</div>
-      </div></div>
-    <div class="pbar" title="${s.progress}% to ${s.next_milestone}"><i style="width:${s.progress}%"></i></div>`;
+  el.innerHTML=`<img class="flame ${s.tier>0?'':'cold'}" src="/assets/streak/flame_${s.flame||1}.png" alt=""
+      title="${s.remaining} more to the next milestone">
+    <div class="streak-count">${s.count} applied</div>`;
 }
 
 async function renderSources(){
