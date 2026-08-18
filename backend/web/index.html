@@ -519,10 +519,10 @@ async function renderGithub(){
   const el=document.getElementById('ghinfo'); if(!el) return;
   let g={}; try{ g=await api('/profile/github'); }catch(_){}
   if(g.repos_scanned){
-    el.innerHTML=`<div class="ghstat">@${esc(g.username)} · ${g.repos_scanned} repos · ${g.skills.length} skills</div>
+    el.innerHTML=`<div class="ghstat">${g.skills.length} skills from ${g.repos_scanned} repos</div>
       <div class="ghskills">${g.skills.slice(0,20).map(s=>`<span class="chip">${esc(s.replace(/_/g,' '))}</span>`).join('')}</div>`;
     document.getElementById('ghimport').textContent='Re-import from GitHub';
-  } else el.innerHTML=`<div class="hint">@${esc(g.username||'—')} — not imported yet.</div>`;
+  } else el.innerHTML=`<div class="hint">Not imported yet.</div>`;
 }
 document.getElementById('ghimport').onclick=async e=>{
   const b=e.target; b.disabled=true; b.textContent='Importing…';
