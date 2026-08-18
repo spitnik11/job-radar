@@ -87,14 +87,16 @@
   .flag{font-size:12px;padding:2px 9px;border-radius:9999px;font-weight:600}
   .flag.warn{color:var(--ok);background:rgba(201,138,18,.12)} .flag.rem{color:var(--accent);background:var(--accent-soft)}
   /* action bar */
-  .acts{display:flex;align-items:center;gap:4px;margin-top:8px;margin-left:-8px}
+  .acts{display:flex;align-items:center;gap:4px;margin-top:8px;margin-left:-8px;flex-wrap:wrap}
   .act{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--subtle);
     font-size:13px;font-weight:500;padding:6px;border-radius:9999px;transition:color .12s,background .12s}
   .act .ic{width:18px;height:18px}
   .act:hover{background:var(--accent-soft);color:var(--accent)}
   .act.save.on{color:var(--accent)} .act.save.on .ic path{fill:currentColor}
   .act.apply:hover{background:var(--good-soft);color:var(--good)}
-  .act.apply.on{color:var(--good)} .act.apply.on .ic path{fill:currentColor}
+  .act.apply.on{color:var(--good);font-weight:600}
+  .act.visit{color:var(--accent);font-weight:600}
+  .act.visit:hover{background:var(--accent-soft);color:var(--accent)}
   .act.dismiss:hover{background:var(--danger-soft);color:var(--danger)}
   .act.spacer{margin-left:auto}
   .act.why:hover{background:var(--accent-soft);color:var(--accent)}
@@ -227,6 +229,7 @@ const ICON={
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6 18 18M18 6 6 18"/></svg>',
   back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>',
   ext:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7M21 3l-9 9M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
 };
 document.getElementById('ic-home').innerHTML=ICON.home;
 document.getElementById('ic-save').innerHTML=ICON.bookmark;
@@ -273,10 +276,11 @@ function renderHead(){
 function actionBar(j){
   const saved=j.status==='SAVED', applied=j.status==='APPLIED';
   return `<div class="acts">
-    <button class="act save ${saved?'on':''}" data-act="save" data-id="${j.id}" title="Save"><span class="ic">${ICON.bookmark}</span></button>
-    <button class="act apply ${applied?'on':''}" data-act="apply" data-id="${j.id}" title="${applied?'Applied':'Apply'}"><span class="ic">${ICON.send}</span>${applied?'Applied':''}</button>
+    <button class="act save ${saved?'on':''}" data-act="save" data-id="${j.id}" title="${saved?'Saved':'Save'}"><span class="ic">${ICON.bookmark}</span></button>
+    <button class="act apply ${applied?'on':''}" data-act="apply" data-id="${j.id}" title="${applied?'Marked applied — click to undo':'Mark as applied'}"><span class="ic">${ICON.check}</span>${applied?'Applied':''}</button>
     <button class="act dismiss" data-act="dismiss" data-id="${j.id}" title="Not interested"><span class="ic">${ICON.x}</span></button>
-    <button class="act why spacer" data-act="details" data-id="${j.id}">Details ›</button>
+    <button class="act visit spacer" data-act="visit" data-id="${j.id}" title="Open the job posting to apply"><span class="ic">${ICON.ext}</span>Apply ↗</button>
+    <button class="act why" data-act="details" data-id="${j.id}">Details ›</button>
   </div>`;
 }
 
@@ -346,7 +350,8 @@ async function openDetail(id){
     <div class="sub">${esc(j.company_name)}${j.company_domain?' · '+esc(j.company_domain):''}</div>
     <span class="verified">✓ Verified source · ${esc(j.source_type)}</span>
     <div class="dacts">
-      <button class="btn primary" data-act="apply" data-id="${j.id}">${applied?'Applied ✓ (tap to undo)':'Apply ↗'}</button>
+      <button class="btn primary" data-act="visit" data-id="${j.id}">Apply on site ↗</button>
+      <button class="btn ${applied?'on':''}" data-act="apply" data-id="${j.id}">${applied?'Applied ✓':'Mark applied'}</button>
       <button class="btn ${saved?'on':''}" data-act="save" data-id="${j.id}">${saved?'Saved ✓':'Save'}</button>
       <button class="btn" data-act="dismiss" data-id="${j.id}">Dismiss</button>
     </div>
@@ -397,9 +402,8 @@ function back(){ view='feed'; detail=null; renderHead(); renderFeed(); window.sc
 async function doAction(act, id){
   const j=j2(id); if(!j) return;
   let newStatus=j.status;
-  if(act==='save')        newStatus = j.status==='SAVED' ? 'VIEWED' : 'SAVED';
-  else if(act==='apply'){ if(j.status!=='APPLIED' && j.apply_url) window.open(j.apply_url,'_blank','noopener');
-                          newStatus = j.status==='APPLIED' ? 'VIEWED' : 'APPLIED'; }
+  if(act==='save')         newStatus = j.status==='SAVED' ? 'VIEWED' : 'SAVED';
+  else if(act==='apply')   newStatus = j.status==='APPLIED' ? 'VIEWED' : 'APPLIED';  // toggle only, no navigation
   else if(act==='dismiss') newStatus='DISMISSED';
   // persist
   if(newStatus==='SAVED') await api('/jobs/'+encodeURIComponent(id)+'/save',{method:'POST'});
@@ -420,6 +424,7 @@ document.querySelector('.center').addEventListener('click',e=>{
   if(a){ e.stopPropagation(); const act=a.dataset.act;
     if(act==='back') back();
     else if(act==='details'||act==='open') openDetail(a.dataset.id);
+    else if(act==='visit'){ const j=j2(a.dataset.id); if(j&&j.apply_url) window.open(j.apply_url,'_blank','noopener'); }
     else doAction(act,a.dataset.id); return; }
   const c=e.target.closest('.card'); if(c) toggleCard(c.dataset.id);   // one click = expand/collapse
 });

@@ -40,7 +40,7 @@ def _list_item(job: CanonicalJob, profile: CandidateProfile) -> JobListItem:
         workplace_type=job.workplace_type, remote=job.remote,
         location_name=job.location_name, date_posted=job.date_posted,
         relevance_score=job.relevance_score, priority_score=job.priority_score,
-        salary_min=job.salary_min, salary_max=job.salary_max,
+        salary_min=job.salary_min, salary_max=job.salary_max, apply_url=job.apply_url,
         top_skills=_top_skills(job, profile), flags=job.flags, status=job.status,
     )
 
@@ -53,7 +53,7 @@ def _detail(job: CanonicalJob, profile: CandidateProfile) -> JobDetail:
         salary_currency=job.salary_currency,
         salary_interval=job.salary_interval, seniority=job.seniority,
         detected_skills=job.detected_skills, score_breakdown=job.score_breakdown,
-        apply_url=job.apply_url, canonical_url=job.canonical_url, source_type=job.source_type,
+        canonical_url=job.canonical_url, source_type=job.source_type,   # apply_url via _list_item
     )
 
 

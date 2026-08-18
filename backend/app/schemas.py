@@ -131,6 +131,7 @@ class JobListItem(BaseModel):
     priority_score: int
     salary_min: Optional[float] = None
     salary_max: Optional[float] = None
+    apply_url: Optional[str] = None
     top_skills: list[str]
     flags: list[str]
     status: JobStatus
