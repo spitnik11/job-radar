@@ -27,7 +27,7 @@ from ..db import SessionLocal
 from ..github_import import import_github
 from ..models import SyncState
 from ..sync_manager import is_running, start_sync
-from .. import geocode, profiles, resume_parser, semantic
+from .. import career, email_tracker, geocode, profiles, resume_parser, semantic
 from ..streak import state as streak_state
 from ..repository import SQLiteJobRepository
 from ..schemas import CandidateProfile, CanonicalJob, JobDetail, JobListItem
@@ -315,6 +315,22 @@ def github_import_endpoint(username: Optional[str] = None):
     reprocess()
     return {"username": result["username"], "repos_scanned": result["repos_scanned"],
             "skills": result["skills"]}
+
+
+@router.get("/email/status")
+def email_status():
+    return {"enabled": email_tracker.creds() is not None}
+
+
+@router.post("/email/check")
+def email_check():
+    """Poll the mailbox once (manual trigger). Inert unless IMAP creds are configured."""
+    return email_tracker.check()
+
+
+@router.get("/career/report")
+def career_report():
+    return career.report()
 
 
 @router.get("/streak")

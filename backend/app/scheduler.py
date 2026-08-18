@@ -15,6 +15,7 @@ from .sync_manager import start_sync
 
 AUTO_SYNC_SECONDS = 4 * 3600      # every 4 hours while running
 STARTUP_STALE_SECONDS = 3600      # only sync on startup if the last sync is > 1h old
+EMAIL_CHECK_SECONDS = 30 * 60     # poll email over long intervals, not constantly (spec)
 
 
 def _seconds_since_last_sync():
@@ -37,5 +38,20 @@ def _loop():
         start_sync("scheduled")
 
 
+def _email_loop():
+    from . import email_tracker
+    while True:
+        time.sleep(90)                        # small delay after startup
+        try:
+            if email_tracker.creds():
+                r = email_tracker.check()
+                if r.get("updated"):
+                    print(f"[email] updated {r['updated']} application(s) from mail")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[email] check failed: {exc}")
+        time.sleep(EMAIL_CHECK_SECONDS)
+
+
 def start_background_sync():
     threading.Thread(target=_loop, daemon=True, name="job-radar-sync").start()
+    threading.Thread(target=_email_loop, daemon=True, name="job-radar-email").start()

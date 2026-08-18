@@ -168,6 +168,13 @@
   .pcard{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:18px 20px;margin-bottom:16px}
   .pcard h4{margin:0 0 6px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
   .pview .prow #profsel{flex:1}
+  .crow{margin:14px 0;font-size:13px}
+  .crow b{display:block;font-weight:700;margin-bottom:6px;color:var(--ink)}
+  .clist{margin:4px 0 0;padding-left:18px;color:var(--muted);line-height:1.65}
+  .rrow{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--hair);border-radius:12px;margin-bottom:8px;cursor:pointer;background:var(--surface)}
+  .rrow:hover{border-color:var(--subtle)}
+  .rtitle{font-weight:700;font-size:14px;letter-spacing:-.01em}
+  .rco{font-size:12px;color:var(--muted);margin-top:2px}
 
   /* ---------- right column ---------- */
   aside{width:350px;flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;padding:8px 18px 30px;
@@ -222,6 +229,7 @@
     <button class="navitem on" data-nav="jobs"><span class="ic" id="ic-home"></span><span class="lab">Home</span><span class="badge" id="b-jobs"></span></button>
     <button class="navitem" data-nav="saved"><span class="ic" id="ic-save"></span><span class="lab">Saved</span><span class="badge" id="b-saved"></span></button>
     <button class="navitem" data-nav="applied"><span class="ic" id="ic-apply"></span><span class="lab">Applied</span><span class="badge" id="b-applied"></span></button>
+    <button class="navitem" data-nav="results"><span class="ic" id="ic-results"></span><span class="lab">Results</span></button>
     <button class="sync" id="sync" title="Fetch the latest job postings from all sources (runs in the background)">Sync</button>
     <div class="streak" id="streak"></div>
     <button class="navitem profile" data-nav="profile" style="margin-top:auto"><span class="ic" id="ic-profile"></span><span class="lab">Profile</span></button>
@@ -305,11 +313,13 @@ const ICON={
   ext:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7M21 3l-9 9M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
   profile:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/></svg>',
+  results:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21V9M4 21v-5M12 21V5M16 21v-9M20 21V3"/></svg>',
 };
 document.getElementById('ic-home').innerHTML=ICON.home;
 document.getElementById('ic-save').innerHTML=ICON.bookmark;
 document.getElementById('ic-apply').innerHTML=ICON.send;
 document.getElementById('ic-profile').innerHTML=ICON.profile;
+document.getElementById('ic-results').innerHTML=ICON.results;
 
 let jobs=[], tab='jobs', view='feed', sel=-1, detail=null, feedScroll=0, sinceTs=null;
 const BATCH=30; let shown=BATCH;                    // windowed render: keep the DOM light
@@ -379,6 +389,8 @@ function renderHead(){
     h.innerHTML=`<button class="iconbtn" data-act="back" data-id="">${ICON.back}</button><h2>Job</h2>`;
   }else if(tab==='profile'){
     h.innerHTML=`<h2>Profile</h2>`;
+  }else if(tab==='results'){
+    h.innerHTML=`<h2>Results</h2>`;
   }else{
     h.innerHTML=`<h2>${TITLES[tab]}</h2><span class="sub">${jobs.length} jobs</span>`;
   }
@@ -546,6 +558,7 @@ function setTab(t){ tab=t; sel=-1; expanded.clear();   // Home/tab click = colla
   window.scrollTo(0,0);
   document.getElementById('newbanner').hidden=true;
   if(t==='profile'){ view='profile'; renderHead(); renderProfileView(); }
+  else if(t==='results'){ view='results'; renderHead(); renderResultsView(); }
   else load();
 }
 document.querySelectorAll('.navitem').forEach(b=>b.onclick=()=>setTab(b.dataset.nav));
@@ -712,6 +725,43 @@ async function renderProfileView(){
     catch(_){ st.textContent='Could not read résumé'; }
     setTimeout(()=>{ if(tab==='profile') renderProfileView(); }, 700);
   };
+}
+
+// ---------- RESULTS view (Offers / Declines) + career report ----------
+let resultFilter='OFFER';
+function careerHtml(r){
+  if(!r||!r.outcomes) return `<h4>Career report</h4><div class="hint">${esc((r&&r.message)||'No outcomes yet.')}</div>`;
+  const chips=a=>a&&a.length?`<div class="chips">${a.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>`:'<div class="hint">—</div>';
+  const lis=a=>a&&a.length?`<ul class="clist">${a.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'';
+  return `<h4>Career report · ${r.outcomes} outcome(s)</h4>
+    <div class="crow"><b>Skills correlated with offers</b>${chips(r.key_skills.linked_to_offers)}</div>
+    <div class="crow"><b>Common in declines</b>${chips(r.key_skills.linked_to_declines)}</div>
+    <div class="crow"><b>Skill gaps to close</b>${chips(r.key_skills.gaps)}</div>
+    <div class="crow"><b>Project suggestions</b>${lis(r.project_suggestions)}</div>
+    <div class="crow"><b>Portfolio suggestions</b>${lis(r.portfolio_suggestions)}</div>
+    <div class="crow"><b>Summary</b>${lis(r.career_report)}</div>`;
+}
+function resultRow(j){
+  const [cls]=band(j.relevance_score);
+  return `<div class="rrow" data-id="${esc(j.id)}"><span class="ring ${cls}" style="width:38px;height:38px;border-width:2px"><span class="n" style="font-size:14px">${j.relevance_score}</span></span>
+    <div><div class="rtitle">${esc(j.title)}</div><div class="rco">${esc(j.company_name)} · ${j.remote?'Remote':esc(j.location_name||'—')}</div></div></div>`;
+}
+async function renderResultsView(){
+  const s=document.getElementById('stream');
+  let rep={}; try{ rep=await api('/career/report'); }catch(_){}
+  s.innerHTML=`<div class="pview">
+    <div class="pcard">${careerHtml(rep)}</div>
+    <div class="seg" id="resultseg">
+      <button class="segbtn ${resultFilter==='OFFER'?'on':''}" data-r="OFFER">Offers${rep.offers?` · ${rep.offers}`:''}</button>
+      <button class="segbtn ${resultFilter==='REJECTED'?'on':''}" data-r="REJECTED">Declines${rep.declines?` · ${rep.declines}`:''}</button>
+    </div>
+    <div id="resultlist" style="margin-top:12px"></div>
+  </div>`;
+  document.getElementById('resultseg').onclick=e=>{ const b=e.target.closest('.segbtn'); if(!b)return; resultFilter=b.dataset.r; renderResultsView(); };
+  let jobs=[]; try{ jobs=await api('/jobs?status='+resultFilter+'&limit=999'); }catch(_){}
+  document.getElementById('resultlist').innerHTML = jobs.length ? jobs.map(resultRow).join('')
+    : `<div class="empty">No ${resultFilter==='OFFER'?'offers':'declines'} yet. Mark a job ${resultFilter==='OFFER'?'Offer':'Rejected'} (or connect email) to populate this.</div>`;
+  document.querySelectorAll('#resultlist .rrow').forEach(r=>r.onclick=()=>openDetail(r.dataset.id));
 }
 
 api('/semantic/status').then(s=>{semanticOn=!!s.enabled;}).catch(()=>{});
