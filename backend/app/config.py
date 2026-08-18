@@ -11,24 +11,9 @@ from typing import Optional
 import yaml
 
 from .interfaces import SourceTarget
-from .schemas import CandidateProfile, TargetRole
+from .schemas import CandidateProfile
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-GITHUB_CACHE = DATA_DIR / "github_evidence.cache.json"
-
-
-def load_github_evidence() -> dict:
-    if GITHUB_CACHE.exists():
-        try:
-            return json.loads(GITHUB_CACHE.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return {}
-    return {}
-
-
-def save_github_evidence(data: dict) -> None:
-    GITHUB_CACHE.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    load_profile.cache_clear()          # profile merges this evidence — refresh it
 
 
 def _load_yaml(name: str) -> dict:
@@ -38,39 +23,37 @@ def _load_yaml(name: str) -> dict:
 
 @lru_cache(maxsize=1)
 def load_profile() -> CandidateProfile:
-    p = _load_yaml("profile.yaml")
-    s = _load_yaml("settings.yaml")
-    cand = p.get("candidate", {})
-    home = p.get("home", {})
-    search = s.get("search", {})
+    """The ACTIVE saveable profile (profile.yaml only seeds the first-run 'Default')."""
+    from . import profiles
+    return profiles.build_candidate(profiles.get_active_data())
 
-    portfolio = set(p.get("portfolio_skills", []))
-    skills = dict(p.get("skills", {}))
-    # merge auto-imported GitHub evidence: portfolio-proven, and add unseen skills at project weight
-    for skill in load_github_evidence().get("evidence", {}):
-        portfolio.add(skill)
-        skills.setdefault(skill, 0.6)
 
-    return CandidateProfile(
-        name=cand.get("name", "Candidate"),
-        years_experience=cand.get("years_experience", 0),
-        education_level=cand.get("education", {}).get("level", "unknown"),
-        education_fields=cand.get("education", {}).get("fields", []),
-        home_city=home.get("city", ""),
-        home_region=home.get("region", ""),
-        home_country=home.get("country", "US"),
-        skills=skills,
-        professional_skills=set(p.get("professional_skills", [])),
-        portfolio_skills=portfolio,
-        github_username=p.get("github", {}).get("username"),
-        target_roles=[TargetRole(**r) for r in s.get("target_roles", [])],
-        radius_miles=search.get("radius_miles", 45),
-        include_remote=search.get("include_remote", True),
-        include_hybrid=search.get("include_hybrid", True),
-        include_onsite=search.get("include_onsite", True),
-        minimum_score=search.get("minimum_score", 65),
-        max_required_years=search.get("max_required_years", 5),
-    )
+import threading as _threading
+
+_reprocessing = False
+
+
+def reprocess() -> None:
+    """Apply a profile/criteria change to the feed: refresh the cached profile, then re-score
+    every stored job IN THE BACKGROUND (rescoring 5k+ jobs must not block the request or fight a
+    running sync). Location coverage is completed by the next background sync."""
+    global _reprocessing
+    load_profile.cache_clear()
+    if _reprocessing:
+        return
+    _reprocessing = True
+
+    def _worker():
+        global _reprocessing
+        try:
+            from .repository import SQLiteJobRepository
+            SQLiteJobRepository().rescore_all()
+        except Exception as exc:  # noqa: BLE001
+            print(f"[reprocess] failed: {exc}")
+        finally:
+            _reprocessing = False
+
+    _threading.Thread(target=_worker, daemon=True, name="job-radar-reprocess").start()
 
 
 def load_usajobs_creds() -> tuple[Optional[str], Optional[str]]:

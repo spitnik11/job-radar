@@ -1,12 +1,13 @@
 """Known-case scoring (spec section 59). Thresholds are calibrated to THIS scorer; the
 invariants that matter are the ordering and that off-target jobs fall below minimum_score."""
 
-from app.config import load_profile
+from app import profiles
 from app.ingestion.pipeline import _enrich
 from app.matching.scorer import RuleBasedMatchEngine
 from app.schemas import CanonicalJob
 
-PROFILE = load_profile()
+# Fixed default (Gabriel) profile, independent of whichever profile is active in the DB
+PROFILE = profiles.build_candidate(profiles._default_data())
 ENGINE = RuleBasedMatchEngine()
 
 

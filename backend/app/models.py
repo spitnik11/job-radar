@@ -98,6 +98,16 @@ class JobEvent(Base):
     detail: Mapped[str] = mapped_column(String, default="")
 
 
+class Profile(Base):
+    """A saveable/switchable candidate profile (resume + location + GitHub + prefs). One is active."""
+    __tablename__ = "profiles"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String)
+    active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
 class SchemaMeta(Base):
     __tablename__ = "schema_metadata"
     key: Mapped[str] = mapped_column(String, primary_key=True)

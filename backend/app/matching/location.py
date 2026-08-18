@@ -100,7 +100,10 @@ def _resolve(job: CanonicalJob) -> Optional[tuple[float, float]]:
 
 def evaluate(job: CanonicalJob, profile: CandidateProfile) -> tuple[float, bool, str]:
     """Return (score 0-1, hard_fail, detail). hard_fail True => drop before storing."""
-    home = CITY_COORDS.get(profile.home_city.lower(), (27.9378, -82.2859))
+    if profile.home_lat is not None and profile.home_lon is not None:
+        home = (profile.home_lat, profile.home_lon)          # geo/manual with resolved coords
+    else:
+        home = CITY_COORDS.get(profile.home_city.lower(), (27.9378, -82.2859))
 
     if job.remote:
         if profile.include_remote:

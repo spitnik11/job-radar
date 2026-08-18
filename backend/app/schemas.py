@@ -98,6 +98,9 @@ class CandidateProfile(BaseModel):
     home_city: str
     home_region: str
     home_country: str = "US"
+    home_lat: Optional[float] = None
+    home_lon: Optional[float] = None
+    home_mode: str = "manual"          # manual | geo
 
     skills: dict[str, float] = Field(default_factory=dict)
     professional_skills: set[str] = Field(default_factory=set)

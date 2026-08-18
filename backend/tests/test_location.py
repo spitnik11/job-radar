@@ -1,10 +1,10 @@
 """Location / radius filtering (spec section 7). hard_fail=True means drop before storing."""
 
-from app.config import load_profile
+from app import profiles
 from app.matching import location as loc
 from app.schemas import CanonicalJob
 
-PROFILE = load_profile()   # Brandon FL, 45 mi, remote+hybrid+onsite on
+PROFILE = profiles.build_candidate(profiles._default_data())  # Brandon FL, 45 mi, remote+hybrid+onsite
 
 
 def _job(**kw):

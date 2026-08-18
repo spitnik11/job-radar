@@ -6,7 +6,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -22,12 +22,12 @@ class RerankIn(BaseModel):
     ids: list[str]
 
 from .. import APP_VERSION, SCHEMA_VERSION
-from ..config import load_github_evidence, load_profile, save_github_evidence
+from ..config import load_profile, reprocess
 from ..db import SessionLocal
 from ..github_import import import_github
 from ..models import SyncState
 from ..sync_manager import is_running, start_sync
-from .. import semantic
+from .. import geocode, profiles, resume_parser, semantic
 from ..streak import state as streak_state
 from ..repository import SQLiteJobRepository
 from ..schemas import CandidateProfile, CanonicalJob, JobDetail, JobListItem
@@ -183,27 +183,136 @@ def pipeline_statuses():
     return PIPELINE
 
 
+class ProfilePatch(BaseModel):
+    name: Optional[str] = None
+    data: dict = {}                    # shallow-merged into the profile (nested 'home' merges too)
+
+
+class LocationIn(BaseModel):
+    mode: str = "manual"               # manual | geo
+    city: Optional[str] = None
+    region: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    radius_miles: Optional[int] = None
+
+
+# ---- profiles (save/switch bundles of resume + location + GitHub + prefs) ----
+
+@router.get("/profiles")
+def list_profiles():
+    return profiles.list_profiles()
+
+
+@router.get("/profile")
+def active_profile():
+    pid, data = profiles.get_active()
+    return {"id": pid, **data}
+
+
+@router.post("/profiles")
+def create_profile(name: str = "New profile"):
+    return {"id": profiles.create(name)}
+
+
+@router.patch("/profiles/{pid}")
+def patch_profile(pid: int, body: ProfilePatch):
+    if not profiles.update(pid, body.data, name=body.name):
+        raise HTTPException(404, "profile not found")
+    reprocess()
+    if "home" in body.data:            # location changed -> re-crawl to cover the new area
+        start_sync("location-change")
+    return {"ok": True}
+
+
+@router.post("/profiles/{pid}/activate")
+def activate_profile(pid: int):
+    if not profiles.activate(pid):
+        raise HTTPException(404, "profile not found")
+    reprocess()
+    start_sync("profile-switch")       # new profile may have a different location
+    return {"ok": True}
+
+
+@router.delete("/profiles/{pid}")
+def delete_profile(pid: int):
+    if not profiles.delete(pid):
+        raise HTTPException(400, "cannot delete (not found, or it's the last profile)")
+    reprocess()
+    return {"ok": True}
+
+
+@router.post("/profile/location")
+def set_location(body: LocationIn):
+    """Set the ACTIVE profile's location — geolocation (lat/lon) or manual (city). Manual cities
+    are geocoded when possible so the radius works anywhere."""
+    pid, _ = profiles.get_active()
+    home = {"mode": body.mode}
+    if body.mode == "geo" and body.lat is not None and body.lon is not None:
+        home.update(lat=body.lat, lon=body.lon, city=body.city or "My location", region=body.region or "")
+    else:
+        place = ", ".join(x for x in (body.city, body.region) if x)
+        coords = geocode.geocode(place) if place else None
+        home.update(city=body.city or "", region=body.region or "",
+                    lat=coords[0] if coords else None, lon=coords[1] if coords else None)
+    patch = {"home": home}
+    if body.radius_miles:
+        patch["radius_miles"] = body.radius_miles
+    profiles.update(pid, patch)
+    reprocess()
+    start_sync("location-change")
+    return {"home": home, "geocoded": home.get("lat") is not None}
+
+
+@router.post("/profiles/{pid}/resume")
+async def upload_resume(pid: int, file: UploadFile = File(...)):
+    """Personalize a profile from an uploaded resume — derive skills, years, and education."""
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "empty file")
+    try:
+        parsed = resume_parser.parse_resume(raw, file.filename or "resume")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(422, f"could not read resume: {exc}")
+    # resume-detected skills become the profile's skills (professional evidence), weighted 0.8
+    patch = {
+        "skills": {s: 0.8 for s in parsed["skills"]},
+        "professional_skills": parsed["skills"],
+        "years_experience": parsed["years_experience"],
+        "education_level": parsed["education_level"],
+        "resume_name": file.filename,
+    }
+    if not profiles.update(pid, patch):
+        raise HTTPException(404, "profile not found")
+    reprocess()
+    return {"skills": parsed["skills"], "years_experience": parsed["years_experience"],
+            "education_level": parsed["education_level"]}
+
+
+# ---- GitHub evidence (stored on the active profile) ----
+
 @router.get("/profile/github")
 def github_profile():
-    ev = load_github_evidence()
-    return {"username": ev.get("username") or load_profile().github_username,
-            "repos_scanned": ev.get("repos_scanned", 0), "skills": ev.get("skills", []),
-            "imported_at": ev.get("imported_at")}
+    _, data = profiles.get_active()
+    return {"username": data.get("github_username"), "skills": data.get("github_skills", []),
+            "repos_scanned": data.get("github_repos", 0)}
 
 
 @router.post("/profile/github/import")
 def github_import_endpoint(username: Optional[str] = None):
-    u = username or load_profile().github_username
+    pid, data = profiles.get_active()
+    u = username or data.get("github_username")
     if not u:
-        raise HTTPException(400, "no GitHub username configured (set github.username in profile.yaml)")
+        raise HTTPException(400, "no GitHub username configured for this profile")
     try:
-        data = import_github(u)
+        result = import_github(u)
     except Exception as exc:  # noqa: BLE001 — surface a clean error to the UI
         raise HTTPException(502, f"GitHub import failed: {exc}")
-    save_github_evidence(data)      # also clears the profile cache so scoring picks it up
-    rescored = repo.rescore_all()   # apply the enriched portfolio to existing jobs now
-    return {"username": data["username"], "repos_scanned": data["repos_scanned"],
-            "skills": data["skills"], "rescored": rescored}
+    profiles.update(pid, {"github_username": u, "github_skills": result["skills"],
+                          "github_repos": result["repos_scanned"]})
+    reprocess()
+    return {"username": result["username"], "repos_scanned": result["repos_scanned"],
+            "skills": result["skills"]}
 
 
 @router.get("/streak")

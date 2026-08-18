@@ -25,6 +25,7 @@ def _set_sqlite_pragma(dbapi_conn, _record):
     cur = dbapi_conn.cursor()
     cur.execute("PRAGMA journal_mode=WAL")     # reliable concurrent reads during ingestion
     cur.execute("PRAGMA foreign_keys=ON")
+    cur.execute("PRAGMA busy_timeout=15000")   # writers wait (up to 15s) instead of erroring/hanging
     cur.close()
 
 
