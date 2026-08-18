@@ -38,6 +38,7 @@ grows without a rewrite. This file records *what was deferred and why* so nothin
 - **Phase 6b (perf pass):** instant client-side card expand (description snippet in list), 30-card windowed infinite-scroll render (DOM 13k→~900 nodes), in-place action updates.
 - **Phase 7 (triage filters):** exclude-words, employment-type, entry-friendly filters (spec §41).
 - **Phase 8 (semantic rerank):** opt-in Ollama-embedding rerank (nomic-embed-text) blended with the deterministic score; cache-only request path + background warming after sync; progressive UI ("smart-ranked").
+- **Phase 9 (post-use fixes + personalization):** fixed Sync freeze (warm decoupled) + parallel crawl + "Show new jobs" pill; application streak (5 flame tiers, reused asset-showcase assets); **profiles subsystem** — save/switch profiles, résumé upload (markitdown → skills/years/education), location manual-geocode/geolocation toggle, background retroactive reprocess.
 
 ## V1.1 (after the core is proven in daily use)
 
