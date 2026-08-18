@@ -84,6 +84,58 @@ SKILL_PATTERNS: dict[str, list[str]] = {
     "redis": ["redis"],
     "kafka": ["kafka"],
     "selenium": ["selenium", "cypress", "playwright"],
+    # ---- cross-industry skills so non-tech résumés/jobs are interpreted (spec: any profession) ----
+    # Healthcare
+    "patient_care": ["patient care", "bedside", "direct patient"],
+    "nursing": ["nursing", "registered nurse", " rn ", "lpn", "cna", "bsn"],
+    "phlebotomy": ["phlebotomy", "venipuncture", "blood draw"],
+    "emr_ehr": ["emr", "ehr", "epic systems", "cerner", "meditech", "electronic health record"],
+    "cpr_bls": ["cpr", "bls", "acls", "first aid", "basic life support"],
+    "hipaa": ["hipaa", "phi"],
+    "medical_coding": ["medical coding", "icd-10", "cpt coding", "billing and coding"],
+    "pharmacy": ["pharmacy", "pharmacist", "medication administration", "dispensing"],
+    "caregiving": ["caregiving", "home health", "hospice", "elderly care"],
+    # Finance / accounting
+    "accounting": ["accounting", "accountant", "accounts payable", "accounts receivable", "gaap"],
+    "bookkeeping": ["bookkeeping", "quickbooks", "ledger", "reconciliation"],
+    "payroll": ["payroll", "adp", "paychex"],
+    "financial_analysis": ["financial analysis", "financial modeling", "forecasting", "fp&a", "valuation"],
+    "auditing": ["auditing", "internal audit", "sox", "compliance audit"],
+    "tax": ["tax preparation", "tax filing", "cpa", "taxation"],
+    "excel": ["excel", "spreadsheets", "pivot table", "vlookup"],
+    # Business / office / PM
+    "project_management": ["project management", "pmp", "program management", "gantt"],
+    "operations": ["operations management", "process improvement", "lean", "six sigma", "kaizen"],
+    "data_entry": ["data entry", "typing", "records management"],
+    "office_admin": ["administrative", "office manager", "receptionist", "scheduling", "calendar management"],
+    "supply_chain": ["supply chain", "logistics", "procurement", "inventory management", "warehouse"],
+    "erp": ["erp", "oracle netsuite", "workday", "sap"],
+    # Sales / marketing / customer
+    "sales": ["sales", "b2b sales", "b2c", "account executive", "quota", "cold calling"],
+    "crm": ["crm", "hubspot crm", "salesforce crm", "pipeline management"],
+    "marketing": ["marketing", "digital marketing", "seo", "sem", "content marketing", "email marketing"],
+    "social_media": ["social media", "instagram", "tiktok", "community management"],
+    "copywriting": ["copywriting", "content writing", "editing", "proofreading"],
+    "customer_success": ["customer success", "account management", "retention", "onboarding"],
+    # Trades / labor / logistics
+    "welding": ["welding", "welder", "mig", "tig"],
+    "electrical": ["electrical", "electrician", "wiring", "voltage"],
+    "plumbing": ["plumbing", "plumber", "pipefitting"],
+    "hvac": ["hvac", "refrigeration", "epa 608"],
+    "cdl": ["cdl", "class a", "commercial driver", "truck driving"],
+    "forklift": ["forklift", "pallet jack", "osha"],
+    "carpentry": ["carpentry", "framing", "cabinetry", "woodworking"],
+    "machining": ["machining", "cnc", "lathe", "fabrication"],
+    # Education / HR / legal / creative / hospitality
+    "teaching": ["teaching", "curriculum", "lesson plan", "classroom", "tutoring", "instruction"],
+    "recruiting": ["recruiting", "talent acquisition", "sourcing", "onboarding", "ats"],
+    "hr": ["human resources", "employee relations", "benefits administration", "hris"],
+    "legal": ["legal research", "paralegal", "litigation", "contract review", "compliance"],
+    "graphic_design": ["graphic design", "photoshop", "illustrator", "indesign", "figma design", "canva"],
+    "video_editing": ["video editing", "premiere pro", "final cut", "after effects"],
+    "hospitality": ["hospitality", "food service", "bartending", "barista", "pos system", "servsafe"],
+    "cooking": ["culinary", "line cook", "food preparation", "catering"],
+    "customer_service_general": ["call center", "help desk support", "client relations"],
 }
 
 _COMPILED: dict[str, re.Pattern] = {
