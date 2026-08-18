@@ -166,6 +166,10 @@
     padding:7px 0}
   .frow select{font-family:inherit;font-size:14px;background:var(--lift);color:var(--ink);border:1px solid var(--hair);
     border-radius:8px;padding:5px 8px}
+  .excl-row{padding:6px 0 2px}
+  .excl{width:100%;background:var(--lift);border:1px solid var(--hair);border-radius:8px;padding:8px 11px;
+    color:var(--ink);font-size:13px;outline:none;font-family:inherit}
+  .excl:focus{border-color:var(--accent)}
   .switch{position:relative;width:38px;height:22px;flex:none}
   .switch input{opacity:0;width:0;height:0}
   .slider{position:absolute;inset:0;background:var(--hair);border-radius:9999px;transition:.15s}
@@ -221,7 +225,12 @@
       <label class="frow">Min salary
         <select id="minsalary"><option value="0" selected>Any</option><option value="60000">$60k+</option><option value="80000">$80k+</option><option value="100000">$100k+</option><option value="120000">$120k+</option></select>
       </label>
+      <label class="frow">Employment
+        <select id="emptype"><option value="">Any</option><option value="full_time">Full-time</option><option value="contract">Contract</option><option value="part_time">Part-time</option><option value="internship">Internship</option></select>
+      </label>
+      <label class="frow">Entry-friendly only<span class="switch"><input type="checkbox" id="entry"><span class="slider"></span></span></label>
       <label class="frow">Show hidden<span class="switch"><input type="checkbox" id="hidden"><span class="slider"></span></span></label>
+      <div class="excl-row"><input id="exclude" class="excl" placeholder="Exclude words: clearance, senior…" autocomplete="off"></div>
     </div>
     <div class="panel">
       <h3>Sources</h3>
@@ -275,6 +284,9 @@ async function load(){
     if(document.getElementById('remote').checked) p.set('remote_only','true');
     p.set('min_score',document.getElementById('minscore').value);
     if(document.getElementById('hidden').checked) p.set('include_suppressed','true');
+    const et=document.getElementById('emptype').value; if(et) p.set('employment_type',et);
+    if(document.getElementById('entry').checked) p.set('entry_only','true');
+    const ex=document.getElementById('exclude').value.trim(); if(ex) p.set('exclude',ex);
   } else if(tab==='saved') p.set('status','SAVED');
   else if(tab==='applied') p.set('status_in', PIPELINE.join(','));
   p.set('sort', document.getElementById('sort').value);
@@ -502,7 +514,8 @@ document.getElementById('sync').onclick=async e=>{
 };
 
 let t; document.getElementById('q').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(load,220);});
-['remote','minscore','hidden','sort','minsalary'].forEach(id=>document.getElementById(id).addEventListener('change',load));
+['remote','minscore','hidden','sort','minsalary','emptype','entry'].forEach(id=>document.getElementById(id).addEventListener('change',load));
+document.getElementById('exclude').addEventListener('input',()=>{clearTimeout(window._x);window._x=setTimeout(load,300);});
 
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'){ if(e.key==='Escape')e.target.blur(); return; }

@@ -115,6 +115,9 @@ class SQLiteJobRepository:
         min_score: Optional[int] = None,
         min_salary: Optional[int] = None,
         remote_only: bool = False,
+        employment_type: Optional[str] = None,
+        entry_only: bool = False,
+        exclude: Optional[list[str]] = None,
         query: Optional[str] = None,
         sort: str = "priority",
         limit: int = 500,
@@ -138,6 +141,16 @@ class SQLiteJobRepository:
             stmt = stmt.where(or_(Job.salary_max.is_(None), Job.salary_max >= min_salary))
         if remote_only:
             stmt = stmt.where(Job.remote.is_(True))
+        if employment_type:
+            stmt = stmt.where(Job.employment_type == employment_type)
+        if entry_only:                        # hide senior+ and 4+ required-years roles
+            stmt = stmt.where(Job.seniority.notin_(
+                ["senior", "staff", "principal", "director", "manager"]))
+            stmt = stmt.where(or_(Job.required_years_max.is_(None), Job.required_years_max <= 3))
+        for term in (exclude or []):
+            like = f"%{term.strip().lower()}%"
+            if term.strip():
+                stmt = stmt.where(~or_(Job.title.ilike(like), Job.description_text.ilike(like)))
         if query:
             like = f"%{query.lower()}%"
             stmt = stmt.where(

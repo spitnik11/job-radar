@@ -96,6 +96,9 @@ def list_jobs(
     remote_only: bool = False,
     min_score: Optional[int] = None,
     min_salary: Optional[int] = None,
+    employment_type: Optional[str] = None,
+    entry_only: bool = False,
+    exclude: Optional[str] = None,            # comma-separated words to hide
     sort: str = "priority",                   # priority | newest | salary
     include_suppressed: bool = False,
     limit: int = Query(500, le=2000),
@@ -107,6 +110,8 @@ def list_jobs(
     jobs = repo.list_jobs(
         query=q, status=status, status_in=grouped, remote_only=remote_only,
         min_score=scored, min_salary=min_salary, sort=sort,
+        employment_type=employment_type, entry_only=entry_only,
+        exclude=exclude.split(",") if exclude else None,
         include_suppressed=include_suppressed, limit=limit,
     )
     return [_list_item(j, profile) for j in jobs]
