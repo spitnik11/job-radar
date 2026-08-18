@@ -150,6 +150,7 @@
   .tt{flex:1;color:var(--ink)} .tm2{color:var(--subtle);font-variant-numeric:tabular-nums;flex:none}
 
   .empty{text-align:center;color:var(--subtle);font-size:15px;padding:60px 30px;line-height:1.6}
+  .morecards{text-align:center;color:var(--subtle);font-size:12px;padding:18px;font-family:var(--mono)}
 
   /* ---------- right column ---------- */
   aside{width:350px;flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;padding:8px 18px 30px;
@@ -253,6 +254,7 @@ document.getElementById('ic-save').innerHTML=ICON.bookmark;
 document.getElementById('ic-apply').innerHTML=ICON.send;
 
 let jobs=[], tab='jobs', view='feed', sel=-1, detail=null, feedScroll=0, sinceTs=null;
+const BATCH=30; let shown=BATCH;                    // windowed render: keep the DOM light
 const TITLES={jobs:'Home',saved:'Saved',applied:'Applied'};
 const PIPELINE=['APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER'];
 const STAGES=['VIEWED','SAVED','APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN','DISMISSED'];
@@ -278,7 +280,7 @@ async function load(){
   p.set('sort', document.getElementById('sort').value);
   const ms=document.getElementById('minsalary').value; if(ms!=='0') p.set('min_salary', ms);
   jobs=await api('/jobs?'+p.toString());
-  sel=-1; view='feed'; renderHead(); renderFeed(); refreshBadges();
+  sel=-1; view='feed'; shown=BATCH; renderHead(); renderFeed(); refreshBadges();
   document.getElementById('newbanner').hidden=true;        // fresh baseline: clear the banner
   if(tab==='jobs'){ try{ sinceTs=(await api('/now')).now; }catch(_){} }
 }
@@ -326,8 +328,7 @@ function card(j){
   const loc=(j.remote?'Remote':(j.location_name||j.workplace_type||'—'))+money(j);
   const open=expanded.has(j.id);
   const more = open ? `<div class="more">${
-    j._desc===undefined ? '<span class="tempty">Loading…</span>'
-    : (j._desc ? esc(j._desc).slice(0,900)+(j._desc.length>900?'…':'') : '<span class="tempty">No description provided.</span>')
+    j.description_snippet ? esc(j.description_snippet)+'…' : '<span class="tempty">No description provided.</span>'
   }</div>` : '';
   return `<div class="card ${open?'open':''}" data-id="${j.id}">
     <div class="ring ${cls}"><span class="n">${j.relevance_score}</span></div>
@@ -340,17 +341,9 @@ function card(j){
 }
 
 const expanded=new Set();
-async function toggleCard(id){
-  const j=jobs.find(x=>x.id===id); if(!j) return;
-  if(expanded.has(id)){ expanded.delete(id); }
-  else{
-    expanded.add(id);
-    if(j._desc===undefined){                       // lazy-load the description on first expand
-      renderOneCard(id);                            // show "Loading…" immediately
-      const d=await api('/jobs/'+encodeURIComponent(id));
-      j._desc=d.description_text||''; if(j.status==='NEW') j.status='VIEWED';
-    }
-  }
+function toggleCard(id){                            // pure client-side: snippet ships with the list
+  if(!jobs.find(x=>x.id===id)) return;
+  expanded.has(id) ? expanded.delete(id) : expanded.add(id);
   renderOneCard(id);
 }
 function renderOneCard(id){
@@ -362,8 +355,15 @@ function renderOneCard(id){
 function renderFeed(){
   const s=document.getElementById('stream');
   if(!jobs.length){ s.innerHTML=`<div class="empty">${tab==='jobs'?'No jobs match. Hit <b>Sync</b> to pull fresh postings, or loosen filters.':'Nothing here yet.'}</div>`; return; }
-  s.innerHTML=jobs.map(card).join('');
+  s.innerHTML=jobs.slice(0,shown).map(card).join('')
+    + (jobs.length>shown?`<div class="morecards">${jobs.length-shown} more · scroll to load</div>`:'');
 }
+window.addEventListener('scroll',()=>{
+  if(view!=='feed'||shown>=jobs.length) return;
+  if(window.innerHeight+window.scrollY >= document.documentElement.scrollHeight-800){
+    shown=Math.min(shown+BATCH, jobs.length); renderFeed();
+  }
+});
 
 async function openDetail(id){
   feedScroll=window.scrollY;
@@ -446,8 +446,11 @@ async function doAction(act, id){
 
   if(view==='detail'){ if(act==='dismiss') back(); else openDetail(id); refreshBadges(); return; }
   const drop = (tab==='jobs'&&newStatus==='DISMISSED')||(tab==='saved'&&newStatus!=='SAVED')||(tab==='applied'&&newStatus!=='APPLIED');
-  if(drop) jobs=jobs.filter(x=>x.id!==id);
-  renderHead(); renderFeed(); refreshBadges();
+  if(drop){                                         // remove just this card, don't rebuild the feed
+    jobs=jobs.filter(x=>x.id!==id);
+    const el=document.querySelector('.card[data-id="'+id+'"]'); if(el) el.remove();
+  } else renderOneCard(id);
+  renderHead(); refreshBadges();
 }
 
 // delegated clicks across header + stream
@@ -511,7 +514,9 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='Enter'&&sel>=0){ toggleCard(jobs[sel].id); }
   else if(sel>=0&&['s','a','x'].includes(e.key)){ doAction({s:'save',a:'apply',x:'dismiss'}[e.key], jobs[sel].id); }
 });
-function highlight(){ const cards=[...document.querySelectorAll('.card')];
+function highlight(){
+  if(sel>=shown){ shown=Math.min(sel+5, jobs.length); renderFeed(); }   // grow window to reach it
+  const cards=[...document.querySelectorAll('.card')];
   cards.forEach((c,i)=>c.classList.toggle('sel',i===sel));
   if(cards[sel]) cards[sel].scrollIntoView({block:'center'}); }
 

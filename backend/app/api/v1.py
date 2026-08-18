@@ -43,7 +43,7 @@ def _list_item(job: CanonicalJob, profile: CandidateProfile) -> JobListItem:
         location_name=job.location_name, date_posted=job.date_posted,
         relevance_score=job.relevance_score, priority_score=job.priority_score,
         salary_min=job.salary_min, salary_max=job.salary_max, apply_url=job.apply_url,
-        freshness=job.freshness,
+        freshness=job.freshness, description_snippet=(job.description_text or "")[:420],
         top_skills=_top_skills(job, profile), flags=job.flags, status=job.status,
     )
 

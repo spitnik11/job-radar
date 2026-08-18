@@ -135,6 +135,7 @@ class JobListItem(BaseModel):
     salary_max: Optional[float] = None
     apply_url: Optional[str] = None
     freshness: str = "ACTIVE"
+    description_snippet: str = ""      # first chars, so the card can expand with no extra request
     top_skills: list[str]
     flags: list[str]
     status: JobStatus
