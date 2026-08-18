@@ -37,11 +37,11 @@ grows without a rewrite. This file records *what was deferred and why* so nothin
 - **Phase 6 (evidence + geocoding):** GitHub portfolio importer (repos → canonical skills → rescore in place), opt-in cached Nominatim geocoding fallback for the radius.
 - **Phase 6b (perf pass):** instant client-side card expand (description snippet in list), 30-card windowed infinite-scroll render (DOM 13k→~900 nodes), in-place action updates.
 - **Phase 7 (triage filters):** exclude-words, employment-type, entry-friendly filters (spec §41).
+- **Phase 8 (semantic rerank):** opt-in Ollama-embedding rerank (nomic-embed-text) blended with the deterministic score; cache-only request path + background warming after sync; progressive UI ("smart-ranked").
 
 ## V1.1 (after the core is proven in daily use)
 
-Local embeddings + semantic rerank (needs a local embedding backend, e.g. Ollama — deferred until
-one is running so it's verifiable) · resume re-import · scam/trust engine
+resume re-import · scam/trust engine
 (arrives with the first untrusted source) · FTS5 ·
 Alembic baseline · daily digest · desktop notifications.
 
