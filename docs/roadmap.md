@@ -39,6 +39,7 @@ grows without a rewrite. This file records *what was deferred and why* so nothin
 - **Phase 7 (triage filters):** exclude-words, employment-type, entry-friendly filters (spec §41).
 - **Phase 8 (semantic rerank):** opt-in Ollama-embedding rerank (nomic-embed-text) blended with the deterministic score; cache-only request path + background warming after sync; progressive UI ("smart-ranked").
 - **Phase 9 (post-use fixes + personalization):** fixed Sync freeze (warm decoupled) + parallel crawl + "Show new jobs" pill; application streak (5 flame tiers, reused asset-showcase assets); **profiles subsystem** — save/switch profiles, résumé upload (markitdown → skills/years/education), location manual-geocode/geolocation toggle, background retroactive reprocess.
+- **Phase 10 (Jobber rebrand + tracking/insights):** renamed **Jobber** + cat logo (Z-Image); streak simplified; Profile → left nav (pinned); Location → right under Refine; geo rework (additive local jobs, Recommended/Local/Remote view, disable-able); applied-leaves-feed; Job Score sort; multi-industry skill vocab; **email application tracker** (IMAP-gated, multi-signal match + Offer/Reject classify); **Results page** (Offers/Declines pills); **career feedback report** (incremental, over outcomes).
 
 ## V1.1 (after the core is proven in daily use)
 
