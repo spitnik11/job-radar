@@ -46,3 +46,12 @@ sources:
 # Off by default (core stays offline); turn on to tighten the radius for any city. Cached + rate-limited.
 geocoding:
   enabled: false
+
+# Semantic re-ranking (optional AI enhancement, spec s.22/56). Reorders the feed by
+# description<->profile similarity, blended with the deterministic score. Needs Ollama + an
+# embedding model; degrades gracefully to the deterministic order if unavailable.
+semantic:
+  enabled: true
+  endpoint: http://localhost:11434
+  model: nomic-embed-text
+  weight: 0.25        # 0-1: how much semantic similarity moves the blended rank

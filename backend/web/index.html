@@ -264,6 +264,7 @@ document.getElementById('ic-apply').innerHTML=ICON.send;
 
 let jobs=[], tab='jobs', view='feed', sel=-1, detail=null, feedScroll=0, sinceTs=null;
 const BATCH=30; let shown=BATCH;                    // windowed render: keep the DOM light
+let semanticOn=false;                               // AI re-rank available? (set from /semantic/status)
 const TITLES={jobs:'Home',saved:'Saved',applied:'Applied'};
 const PIPELINE=['APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER'];
 const STAGES=['VIEWED','SAVED','APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN','DISMISSED'];
@@ -295,6 +296,19 @@ async function load(){
   sel=-1; view='feed'; shown=BATCH; renderHead(); renderFeed(); refreshBadges();
   document.getElementById('newbanner').hidden=true;        // fresh baseline: clear the banner
   if(tab==='jobs'){ try{ sinceTs=(await api('/now')).now; }catch(_){} }
+  rerankFeed();                                            // progressive: reorder once AI responds
+}
+
+async function rerankFeed(){
+  if(!semanticOn||tab!=='jobs'||view!=='feed'||!jobs.length) return;
+  if(document.getElementById('sort').value!=='priority') return;   // only augments Best-match
+  const ids=jobs.slice(0,60).map(j=>j.id);
+  let res; try{ res=await api('/rerank',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})}); }catch(_){ return; }
+  if(!res||!res.order||tab!=='jobs'||view!=='feed') return;         // user may have moved on
+  const pos={}; res.order.forEach((id,i)=>pos[id]=i);
+  const head=jobs.slice(0,60).sort((a,b)=>(pos[a.id]??99)-(pos[b.id]??99));
+  jobs=head.concat(jobs.slice(60)); renderFeed();
+  const sub=document.querySelector('.chead .sub'); if(sub) sub.textContent=jobs.length+' jobs · smart-ranked';
 }
 
 async function checkNew(){
@@ -548,6 +562,7 @@ document.getElementById('ghimport').onclick=async e=>{
   b.disabled=false; await renderGithub(); load();   // jobs are rescored server-side on import
 };
 
+api('/semantic/status').then(s=>{semanticOn=!!s.enabled;}).catch(()=>{});
 renderSources(); renderGithub(); load();
 </script>
 </body>

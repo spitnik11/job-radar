@@ -17,12 +17,17 @@ PIPELINE = ["APPLYING", "APPLIED", "PHONE_SCREEN", "INTERVIEW", "FINAL_INTERVIEW
 class NoteIn(BaseModel):
     text: str
 
+
+class RerankIn(BaseModel):
+    ids: list[str]
+
 from .. import APP_VERSION, SCHEMA_VERSION
 from ..config import load_github_evidence, load_profile, save_github_evidence
 from ..db import SessionLocal
 from ..github_import import import_github
 from ..models import SyncState
 from ..sync_manager import is_running, start_sync
+from .. import semantic
 from ..repository import SQLiteJobRepository
 from ..schemas import CandidateProfile, CanonicalJob, JobDetail, JobListItem
 
@@ -198,6 +203,25 @@ def github_import_endpoint(username: Optional[str] = None):
     rescored = repo.rescore_all()   # apply the enriched portfolio to existing jobs now
     return {"username": data["username"], "repos_scanned": data["repos_scanned"],
             "skills": data["skills"], "rescored": rescored}
+
+
+@router.get("/semantic/status")
+def semantic_status():
+    return {"enabled": semantic.enabled()}
+
+
+@router.post("/rerank")
+def rerank(body: RerankIn):
+    """Reorder the given job ids by blended (deterministic + semantic) score. No-op if disabled."""
+    if not semantic.enabled():
+        return {"order": body.ids, "scores": {}}
+    items = []
+    for jid in body.ids[:80]:                       # cap the work per request
+        j = repo.get(jid)
+        if j:
+            items.append({"id": jid, "relevance": j.relevance_score,
+                          "text": f"{j.title}. {(j.description_text or '')[:500]}"})
+    return semantic.rerank(items, load_profile())
 
 
 @router.get("/sources")

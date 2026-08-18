@@ -36,6 +36,10 @@ def _run(reason: str):
         r = run_ingestion()
         _last_error = None
         print(f"[sync/{reason}] stored {r['stored']} jobs")
+        from . import semantic                    # warm top embeddings so /rerank is instant
+        if semantic.enabled():
+            from .repository import SQLiteJobRepository
+            print(f"[sync/{reason}] warmed {semantic.warm_top(SQLiteJobRepository(), 200)} embeddings")
     except Exception as exc:  # noqa: BLE001 — a failed sync must not wedge the flag
         _last_error = str(exc)
         print(f"[sync/{reason}] failed: {exc}")
