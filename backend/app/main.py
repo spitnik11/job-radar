@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .api.v1 import router as api_v1
 from .db import init_db
@@ -24,6 +25,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Job Radar", version="0.1.0", lifespan=lifespan)
 app.include_router(api_v1)
+app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")
 
 
 @app.get("/", include_in_schema=False)

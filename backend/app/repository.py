@@ -217,6 +217,14 @@ class SQLiteJobRepository:
             sess.commit()
             return res.rowcount or 0
 
+    def count_applications(self) -> int:
+        """Jobs you've actually applied to (APPLIED and beyond, incl. rejected/withdrawn)."""
+        applied = ["APPLIED", "PHONE_SCREEN", "INTERVIEW", "FINAL_INTERVIEW",
+                   "OFFER", "REJECTED", "WITHDRAWN"]
+        with SessionLocal() as s:
+            return s.execute(
+                select(func.count()).select_from(Job).where(Job.status.in_(applied))).scalar() or 0
+
     def count_new(self, since, min_score: int = 0) -> int:
         """New arrivals since `since` that would show in the main feed (for the refresh banner)."""
         stmt = (select(func.count()).select_from(Job).where(

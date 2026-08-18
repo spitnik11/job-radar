@@ -28,6 +28,7 @@ from ..github_import import import_github
 from ..models import SyncState
 from ..sync_manager import is_running, start_sync
 from .. import semantic
+from ..streak import state as streak_state
 from ..repository import SQLiteJobRepository
 from ..schemas import CandidateProfile, CanonicalJob, JobDetail, JobListItem
 
@@ -203,6 +204,12 @@ def github_import_endpoint(username: Optional[str] = None):
     rescored = repo.rescore_all()   # apply the enriched portfolio to existing jobs now
     return {"username": data["username"], "repos_scanned": data["repos_scanned"],
             "skills": data["skills"], "rescored": rescored}
+
+
+@router.get("/streak")
+def streak():
+    """Application milestone/streak (0 tier = greyed fire; progress is toward the next milestone)."""
+    return streak_state(repo.count_applications())
 
 
 @router.get("/semantic/status")
