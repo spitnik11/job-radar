@@ -34,11 +34,12 @@ grows without a rewrite. This file records *what was deferred and why* so nothin
 - **Phase 4 (sync UX + sort/salary):** non-blocking /sync (fire-and-forget + status poll), sort (match/newest/salary) + min-salary floor, salary on cards; fixed far-hybrid location leak.
 - **Phase 4b (card actions):** split "Apply ↗" (opens real posting) from a mark-applied toggle.
 - **Phase 5 (freshness + banner):** stale pruning (`jobs.freshness`, EXPIRED postings hidden from feed, self-healing), "N new jobs" refresh banner (`/now` + `/new_jobs_count`, polled 90s).
+- **Phase 6 (evidence + geocoding):** GitHub portfolio importer (repos → canonical skills → rescore in place), opt-in cached Nominatim geocoding fallback for the radius.
 
 ## V1.1 (after the core is proven in daily use)
 
-Local embeddings + semantic rerank · GitHub repo importer · resume re-import · scam/trust engine
-(arrives with the first untrusted source) · FTS5 · precise geocoding ·
+Local embeddings + semantic rerank · resume re-import · scam/trust engine
+(arrives with the first untrusted source) · FTS5 ·
 Alembic baseline · daily digest · desktop notifications.
 
 ## V1.2+

@@ -54,6 +54,19 @@ a **free** key:
 3. Sync. Without a key the source is inert (no error). Search keywords live under `usajobs:` in
    `companies.yaml`; location + radius come from your profile.
 
+### Portfolio evidence from GitHub
+
+Click **Import from GitHub** in the right sidebar (or `POST /api/v1/profile/github/import`) to pull
+your public repos' languages/topics/descriptions into your portfolio-skill evidence — the scorer's
+portfolio factor then reflects real shipped work, and existing jobs are rescored on the spot. Set
+`github.username` in `profile.yaml` (public repos only; a token for private repos is a later add).
+
+### Tighter local radius (optional geocoding)
+
+The radius uses a built-in Tampa-Bay city table by default (fully offline). To resolve *any* city
+precisely, set `geocoding.enabled: true` in `settings.yaml` — it geocodes table-misses via
+OpenStreetMap Nominatim (cached to `data/geocode.cache.json`, rate-limited).
+
 ## Layout
 
 ```
