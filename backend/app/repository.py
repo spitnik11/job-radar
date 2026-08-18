@@ -115,6 +115,8 @@ class SQLiteJobRepository:
         min_score: Optional[int] = None,
         min_salary: Optional[int] = None,
         remote_only: bool = False,
+        view: str = "recommended",       # recommended | local | remote
+        geo_enabled: bool = True,        # when False, recommended = remote-only (no location)
         employment_type: Optional[str] = None,
         entry_only: bool = False,
         exclude: Optional[list[str]] = None,
@@ -142,7 +144,13 @@ class SQLiteJobRepository:
         if min_salary:
             # keep jobs at/above the floor AND jobs with no salary data (don't hide the unknowns)
             stmt = stmt.where(or_(Job.salary_max.is_(None), Job.salary_max >= min_salary))
-        if remote_only:
+        # locality view: local = onsite/hybrid within radius (far ones are dropped at ingestion,
+        # so any stored non-remote job IS local); remote = remote. geo off -> recommended is remote-only.
+        if remote_only or view == "remote":
+            stmt = stmt.where(Job.remote.is_(True))
+        elif view == "local":
+            stmt = stmt.where(Job.remote.is_(False))
+        elif not geo_enabled:            # recommended + geo disabled -> append no local jobs
             stmt = stmt.where(Job.remote.is_(True))
         if employment_type:
             stmt = stmt.where(Job.employment_type == employment_type)

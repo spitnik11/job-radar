@@ -164,6 +164,10 @@
 
   .empty{text-align:center;color:var(--subtle);font-size:15px;padding:60px 30px;line-height:1.6}
   .morecards{text-align:center;color:var(--subtle);font-size:12px;padding:18px;font-family:var(--mono)}
+  .pview{padding:16px 20px 60px;max-width:640px}
+  .pcard{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:18px 20px;margin-bottom:16px}
+  .pcard h4{margin:0 0 6px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .pview .prow #profsel{flex:1}
 
   /* ---------- right column ---------- */
   aside{width:350px;flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;padding:8px 18px 30px;
@@ -220,6 +224,7 @@
     <button class="navitem" data-nav="applied"><span class="ic" id="ic-apply"></span><span class="lab">Applied</span><span class="badge" id="b-applied"></span></button>
     <button class="sync" id="sync" title="Fetch the latest job postings from all sources (runs in the background)">Sync</button>
     <div class="streak" id="streak"></div>
+    <button class="navitem profile" data-nav="profile" style="margin-top:auto"><span class="ic" id="ic-profile"></span><span class="lab">Profile</span></button>
     <div class="navfoot" id="foot">v0.1</div>
   </nav>
 
@@ -237,34 +242,14 @@
       <input id="q" placeholder="Search jobs, companies, skills" autocomplete="off">
     </div>
     <div class="panel">
-      <h3>Profile</h3>
-      <div class="prow">
-        <select id="profsel"></select>
-        <button class="btn mini" id="profnew" title="New profile">+</button>
-        <button class="btn mini" id="profdel" title="Delete profile">🗑</button>
-      </div>
-      <div class="submeta" style="margin-top:12px">Location</div>
-      <div class="seg">
-        <button class="segbtn" id="loc-manual" data-mode="manual">Manual</button>
-        <button class="segbtn" id="loc-geo" data-mode="geo">Use my location</button>
-      </div>
-      <div id="loc-fields" class="locfields">
-        <input id="loc-city" class="excl" placeholder="City" autocomplete="off">
-        <div class="prow" style="margin-top:6px">
-          <input id="loc-region" class="excl" placeholder="ST" style="max-width:64px" autocomplete="off">
-          <select id="loc-radius"><option value="25">25 mi</option><option value="45">45 mi</option><option value="60">60 mi</option><option value="100">100 mi</option></select>
-          <button class="btn mini" id="loc-set">Set</button>
-        </div>
-      </div>
-      <div id="loc-status" class="hint" style="margin-top:8px"></div>
-      <div class="submeta" style="margin-top:14px">Résumé</div>
-      <label class="btn upload" id="resume-btn">Upload résumé<input type="file" id="resume-file" accept=".pdf,.docx,.doc,.txt,.md" hidden></label>
-      <div id="resume-status" class="hint" style="margin-top:7px"></div>
-    </div>
-    <div class="panel">
       <h3>Refine</h3>
-      <label class="frow">Remote only<span class="switch"><input type="checkbox" id="remote"><span class="slider"></span></span></label>
-      <label class="frow">Minimum match
+      <div class="submeta">View</div>
+      <div class="seg" id="viewseg">
+        <button class="segbtn on" data-view="recommended">Recommended</button>
+        <button class="segbtn" data-view="local">Local</button>
+        <button class="segbtn" data-view="remote">Remote</button>
+      </div>
+      <label class="frow" style="margin-top:12px">Minimum match
         <select id="minscore"><option value="0">Any</option><option value="65" selected>65+</option><option value="75">75+</option><option value="85">85+</option></select>
       </label>
       <label class="frow">Sort by
@@ -281,15 +266,29 @@
       <div class="excl-row"><input id="exclude" class="excl" placeholder="Exclude words: clearance, senior…" autocomplete="off"></div>
     </div>
     <div class="panel">
+      <h3>Location</h3>
+      <label class="frow">Use my location<span class="switch"><input type="checkbox" id="geo-enabled"><span class="slider"></span></span></label>
+      <div class="submeta" style="margin:2px 0 8px">On: adds local jobs within radius. Off: remote-only.</div>
+      <div id="geo-controls">
+        <div class="seg">
+          <button class="segbtn" id="loc-manual" data-mode="manual">Manual</button>
+          <button class="segbtn" id="loc-geo" data-mode="geo">Locate me</button>
+        </div>
+        <div id="loc-fields" class="locfields">
+          <input id="loc-city" class="excl" placeholder="City" autocomplete="off">
+          <div class="prow" style="margin-top:6px">
+            <input id="loc-region" class="excl" placeholder="ST" style="max-width:64px" autocomplete="off">
+            <select id="loc-radius"><option value="25">25 mi</option><option value="45">45 mi</option><option value="60">60 mi</option><option value="100">100 mi</option></select>
+            <button class="btn mini" id="loc-set">Set</button>
+          </div>
+        </div>
+        <div id="loc-status" class="hint" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="panel">
       <h3>Sources</h3>
       <div class="submeta">Auto-refreshes every 4h · “Sync new jobs” pulls fresh right now</div>
       <div id="sources"><div class="hint">No sync yet.</div></div>
-    </div>
-    <div class="panel">
-      <h3>Portfolio</h3>
-      <div class="submeta">Skill evidence from your public GitHub repos</div>
-      <div id="ghinfo"><div class="hint">Not imported yet.</div></div>
-      <button class="btn ghbtn" id="ghimport">Import from GitHub</button>
     </div>
     <div class="hint">j / k&nbsp;&nbsp;move &nbsp;·&nbsp; s&nbsp;save &nbsp;·&nbsp; a&nbsp;apply<br>x&nbsp;dismiss &nbsp;·&nbsp; enter&nbsp;open &nbsp;·&nbsp; /&nbsp;search</div>
   </aside>
@@ -305,15 +304,17 @@ const ICON={
   back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>',
   ext:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7M21 3l-9 9M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  profile:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/></svg>',
 };
 document.getElementById('ic-home').innerHTML=ICON.home;
 document.getElementById('ic-save').innerHTML=ICON.bookmark;
 document.getElementById('ic-apply').innerHTML=ICON.send;
+document.getElementById('ic-profile').innerHTML=ICON.profile;
 
 let jobs=[], tab='jobs', view='feed', sel=-1, detail=null, feedScroll=0, sinceTs=null;
 const BATCH=30; let shown=BATCH;                    // windowed render: keep the DOM light
 let semanticOn=false;                               // AI re-rank available? (set from /semantic/status)
-const TITLES={jobs:'Home',saved:'Saved',applied:'Applied'};
+const TITLES={jobs:'Home',saved:'Saved',applied:'Applied',profile:'Profile'};
 const PIPELINE=['APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER'];
 const STAGES=['VIEWED','SAVED','APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN','DISMISSED'];
 const nice=s=>s.toLowerCase().replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
@@ -330,7 +331,7 @@ async function load(){
   const p=new URLSearchParams();
   const q=document.getElementById('q').value.trim(); if(q) p.set('q',q);
   if(tab==='jobs'){
-    if(document.getElementById('remote').checked) p.set('remote_only','true');
+    p.set('view', currentView);
     p.set('min_score',document.getElementById('minscore').value);
     if(document.getElementById('hidden').checked) p.set('include_suppressed','true');
     const et=document.getElementById('emptype').value; if(et) p.set('employment_type',et);
@@ -376,6 +377,8 @@ function renderHead(){
   const h=document.getElementById('chead');
   if(view==='detail'){
     h.innerHTML=`<button class="iconbtn" data-act="back" data-id="">${ICON.back}</button><h2>Job</h2>`;
+  }else if(tab==='profile'){
+    h.innerHTML=`<h2>Profile</h2>`;
   }else{
     h.innerHTML=`<h2>${TITLES[tab]}</h2><span class="sub">${jobs.length} jobs</span>`;
   }
@@ -540,7 +543,11 @@ document.querySelector('.center').addEventListener('click',e=>{
 
 function setTab(t){ tab=t; sel=-1; expanded.clear();   // Home/tab click = collapse, scroll top, refresh feed
   document.querySelectorAll('.navitem').forEach(b=>b.classList.toggle('on',b.dataset.nav===t));
-  window.scrollTo(0,0); load(); }
+  window.scrollTo(0,0);
+  document.getElementById('newbanner').hidden=true;
+  if(t==='profile'){ view='profile'; renderHead(); renderProfileView(); }
+  else load();
+}
 document.querySelectorAll('.navitem').forEach(b=>b.onclick=()=>setTab(b.dataset.nav));
 
 async function refreshBadges(){
@@ -585,7 +592,7 @@ document.getElementById('sync').onclick=async e=>{
 };
 
 let t; document.getElementById('q').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(load,220);});
-['remote','minscore','hidden','sort','minsalary','emptype','entry'].forEach(id=>document.getElementById(id).addEventListener('change',load));
+['minscore','hidden','sort','minsalary','emptype','entry'].forEach(id=>document.getElementById(id).addEventListener('change',load));
 document.getElementById('exclude').addEventListener('input',()=>{clearTimeout(window._x);window._x=setTimeout(load,300);});
 
 document.addEventListener('keydown',e=>{
@@ -604,57 +611,43 @@ function highlight(){
   cards.forEach((c,i)=>c.classList.toggle('sel',i===sel));
   if(cards[sel]) cards[sel].scrollIntoView({block:'center'}); }
 
-async function renderGithub(){
-  const el=document.getElementById('ghinfo'); if(!el) return;
-  let g={}; try{ g=await api('/profile/github'); }catch(_){}
-  if(g.repos_scanned){
-    el.innerHTML=`<div class="ghstat">${g.skills.length} skills from ${g.repos_scanned} repos</div>
-      <div class="ghskills">${g.skills.slice(0,20).map(s=>`<span class="chip">${esc(s.replace(/_/g,' '))}</span>`).join('')}</div>`;
-    document.getElementById('ghimport').textContent='Re-import from GitHub';
-  } else el.innerHTML=`<div class="hint">Not imported yet.</div>`;
-}
-document.getElementById('ghimport').onclick=async e=>{
-  const b=e.target; b.disabled=true; b.textContent='Importing…';
-  try{ await api('/profile/github/import',{method:'POST'}); }catch(_){}
-  b.disabled=false; await renderGithub(); load();   // jobs are rescored server-side on import
-};
-
-// ---------- profiles / location / resume ----------
-let activeProfileId=null;
+// ---------- LOCATION panel (right sidebar) + VIEW segmented ----------
+let activeProfileId=null, currentView='recommended';
 function setLocMode(mode){
-  document.querySelectorAll('.seg .segbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
+  document.querySelectorAll('#geo-controls .segbtn').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
   document.getElementById('loc-fields').style.display = mode==='geo'?'none':'block';
 }
-async function renderProfiles(){
-  let list, active;
-  try{ [list,active]=await Promise.all([api('/profiles'),api('/profile')]); }catch(_){ return; }
+function applyGeoUI(on){
+  const gc=document.getElementById('geo-controls');
+  gc.style.opacity=on?'1':'.45'; gc.style.pointerEvents=on?'auto':'none';
+  const local=document.querySelector('#viewseg [data-view="local"]');
+  local.disabled=!on; local.style.opacity=on?'1':'.4';
+  if(!on && currentView==='local') setView('recommended');
+}
+async function renderLocation(){
+  let active; try{ active=await api('/profile'); }catch(_){ return; }
   activeProfileId=active.id;
-  document.getElementById('profsel').innerHTML=list.map(p=>`<option value="${p.id}" ${p.active?'selected':''}>${esc(p.name)}</option>`).join('');
-  const home=active.home||{};
+  const home=active.home||{}, on=active.geo_enabled!==false;
+  document.getElementById('geo-enabled').checked=on; applyGeoUI(on);
   setLocMode(home.mode||'manual');
   document.getElementById('loc-city').value=home.city||'';
   document.getElementById('loc-region').value=home.region||'';
   document.getElementById('loc-radius').value=String(active.radius_miles||45);
   const loc=home.city?`${esc(home.city)}${home.region?', '+esc(home.region):''}`:'—';
-  document.getElementById('loc-status').innerHTML=`${home.mode==='geo'?'📍 ':''}${loc}${home.lat!=null?` · ${active.radius_miles} mi radius`:' · not resolved'}`;
-  document.getElementById('resume-status').textContent=active.resume_name?('📄 '+active.resume_name):'No résumé uploaded';
+  document.getElementById('loc-status').innerHTML=`${home.mode==='geo'?'📍 ':''}${loc}${home.lat!=null?` · ${active.radius_miles} mi`:' · not resolved'}`;
 }
-function afterProfileChange(){ renderProfiles(); renderGithub(); load(); }
-
-document.getElementById('profsel').addEventListener('change',async e=>{
-  await api('/profiles/'+e.target.value+'/activate',{method:'POST'}); afterProfileChange();
+function setView(v){ currentView=v;
+  document.querySelectorAll('#viewseg .segbtn').forEach(b=>b.classList.toggle('on',b.dataset.view===v)); }
+document.getElementById('viewseg').addEventListener('click',e=>{
+  const b=e.target.closest('.segbtn'); if(!b||b.disabled) return; setView(b.dataset.view);
+  if(tab!=='jobs') setTab('jobs'); else load();
 });
-document.getElementById('profnew').onclick=async ()=>{
-  const name=prompt('New profile name:','My profile'); if(!name) return;
-  const r=await api('/profiles?name='+encodeURIComponent(name),{method:'POST'});
-  await api('/profiles/'+r.id+'/activate',{method:'POST'}); afterProfileChange();
-};
-document.getElementById('profdel').onclick=async ()=>{
-  if(!activeProfileId||!confirm('Delete the active profile?')) return;
-  const r=await api('/profiles/'+activeProfileId,{method:'DELETE'});
-  if(r.ok!==true){ alert(r.detail||'Cannot delete the last profile.'); return; }
-  afterProfileChange();
-};
+document.getElementById('geo-enabled').addEventListener('change',async e=>{
+  applyGeoUI(e.target.checked);
+  await api('/profiles/'+activeProfileId,{method:'PATCH',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({data:{geo_enabled:e.target.checked}})});
+  if(tab==='jobs') load();
+});
 document.getElementById('loc-manual').onclick=()=>setLocMode('manual');
 document.getElementById('loc-geo').onclick=()=>{
   setLocMode('geo');
@@ -664,8 +657,8 @@ document.getElementById('loc-geo').onclick=()=>{
     await api('/profile/location',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({mode:'geo',lat:pos.coords.latitude,lon:pos.coords.longitude,
         radius_miles:parseInt(document.getElementById('loc-radius').value)})});
-    afterProfileChange();
-  }, ()=>{ st.textContent='Location permission denied'; setLocMode('manual'); });
+    renderLocation(); if(tab==='jobs') load();
+  }, ()=>{ st.textContent='Location permission denied — enter it manually'; setLocMode('manual'); });
 };
 document.getElementById('loc-set').onclick=async ()=>{
   document.getElementById('loc-status').textContent='Setting location…';
@@ -673,21 +666,56 @@ document.getElementById('loc-set').onclick=async ()=>{
     mode:'manual', city:document.getElementById('loc-city').value.trim(),
     region:document.getElementById('loc-region').value.trim(),
     radius_miles:parseInt(document.getElementById('loc-radius').value)})});
-  afterProfileChange();
-};
-document.getElementById('resume-file').onchange=async e=>{
-  const f=e.target.files[0]; if(!f||!activeProfileId) return;
-  const st=document.getElementById('resume-status'); st.textContent='Reading résumé…';
-  const fd=new FormData(); fd.append('file',f);
-  try{
-    const r=await fetch('/api/v1/profiles/'+activeProfileId+'/resume',{method:'POST',body:fd}).then(x=>x.json());
-    st.textContent=r.skills?`📄 ${f.name} — ${r.skills.length} skills · ${r.years_experience}y · ${esc(r.education_level)}`:(r.detail||'Could not read résumé');
-  }catch(_){ st.textContent='Could not read résumé'; }
-  renderGithub(); renderProfiles(); load(); e.target.value='';
+  renderLocation(); if(tab==='jobs') load();
 };
 
+// ---------- PROFILE view (center, opened from left nav) ----------
+async function renderProfileView(){
+  const s=document.getElementById('stream');
+  let list, active, gh;
+  try{ [list,active,gh]=await Promise.all([api('/profiles'),api('/profile'),api('/profile/github')]); }catch(_){ return; }
+  activeProfileId=active.id;
+  const chips=arr=>(arr||[]).slice(0,28).map(k=>`<span class="chip">${esc(String(k).replace(/_/g,' '))}</span>`).join('');
+  s.innerHTML=`<div class="pview">
+    <div class="pcard">
+      <div class="prow">
+        <select id="profsel">${list.map(p=>`<option value="${p.id}" ${p.active?'selected':''}>${esc(p.name)}</option>`).join('')}</select>
+        <button class="btn mini" id="profnew">+ New</button>
+        <button class="btn mini" id="profdel">Delete</button>
+      </div>
+      <div class="submeta" style="margin-top:10px">${Object.keys(active.skills||{}).length} skills · ${active.years_experience||0}y experience · ${esc(active.education_level||'—')} · 📍 ${esc((active.home||{}).city||'—')}</div>
+    </div>
+    <div class="pcard">
+      <h4>Résumé</h4>
+      <div class="submeta">Upload a résumé (PDF / DOCX / TXT) to personalize skills, experience and education for this profile.</div>
+      <label class="btn upload" id="resume-btn" style="max-width:220px;margin-top:8px">Upload résumé<input type="file" id="resume-file" accept=".pdf,.docx,.doc,.txt,.md" hidden></label>
+      <div id="resume-status" class="hint" style="margin-top:8px">${active.resume_name?('📄 '+esc(active.resume_name)):'No résumé uploaded'}</div>
+      <div class="chips" style="margin-top:12px">${chips(Object.keys(active.skills||{}))}</div>
+    </div>
+    <div class="pcard">
+      <h4>GitHub portfolio evidence</h4>
+      <div class="submeta">Import public repos to add project-proven skills to this profile.</div>
+      <div id="ghinfo" style="margin-top:8px">${gh.repos_scanned?`<div class="ghstat">${gh.skills.length} skills from ${gh.repos_scanned} repos</div><div class="chips" style="margin-top:8px">${chips(gh.skills)}</div>`:'<div class="hint">Not imported yet.</div>'}</div>
+      <button class="btn" id="ghimport" style="margin-top:12px">${gh.repos_scanned?'Re-import from GitHub':'Import from GitHub'}</button>
+    </div>
+  </div>`;
+  document.getElementById('profsel').onchange=async e=>{ await api('/profiles/'+e.target.value+'/activate',{method:'POST'}); renderProfileView(); renderLocation(); };
+  document.getElementById('profnew').onclick=async ()=>{ const n=prompt('New profile name:','My profile'); if(!n) return; const r=await api('/profiles?name='+encodeURIComponent(n),{method:'POST'}); await api('/profiles/'+r.id+'/activate',{method:'POST'}); renderProfileView(); renderLocation(); };
+  document.getElementById('profdel').onclick=async ()=>{ if(!confirm('Delete the active profile?')) return; const r=await api('/profiles/'+activeProfileId,{method:'DELETE'}); if(r.ok!==true){ alert(r.detail||'Cannot delete the last profile.'); return; } renderProfileView(); renderLocation(); };
+  document.getElementById('ghimport').onclick=async e=>{ const b=e.target; b.disabled=true; b.textContent='Importing…'; try{ await api('/profile/github/import',{method:'POST'}); }catch(_){} renderProfileView(); };
+  document.getElementById('resume-file').onchange=async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const st=document.getElementById('resume-status'); st.textContent='Reading résumé…';
+    const fd=new FormData(); fd.append('file',f);
+    try{ const r=await fetch('/api/v1/profiles/'+activeProfileId+'/resume',{method:'POST',body:fd}).then(x=>x.json());
+      st.textContent=r.skills?`📄 ${f.name} — ${r.skills.length} skills · ${r.years_experience}y · ${esc(r.education_level)}`:(r.detail||'Could not read résumé'); }
+    catch(_){ st.textContent='Could not read résumé'; }
+    setTimeout(()=>{ if(tab==='profile') renderProfileView(); }, 700);
+  };
+}
+
 api('/semantic/status').then(s=>{semanticOn=!!s.enabled;}).catch(()=>{});
-renderProfiles(); renderSources(); renderGithub(); load();
+renderLocation(); renderSources(); load();
 </script>
 </body>
 </html>

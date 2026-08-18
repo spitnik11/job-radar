@@ -37,6 +37,7 @@ def _default_data() -> dict:
         "include_remote": search.get("include_remote", True),
         "include_hybrid": search.get("include_hybrid", True),
         "include_onsite": search.get("include_onsite", True),
+        "geo_enabled": True,
         "minimum_score": search.get("minimum_score", 65),
         "max_required_years": search.get("max_required_years", 5),
         "skills": p.get("skills", {}),
@@ -157,6 +158,7 @@ def build_candidate(data: dict) -> CandidateProfile:
         include_remote=data.get("include_remote", True),
         include_hybrid=data.get("include_hybrid", True),
         include_onsite=data.get("include_onsite", True),
+        geo_enabled=data.get("geo_enabled", True),
         minimum_score=data.get("minimum_score", 65),
         max_required_years=data.get("max_required_years", 5),
     )

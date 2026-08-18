@@ -100,6 +100,7 @@ def list_jobs(
     status: Optional[str] = None,
     status_in: Optional[str] = None,          # CSV; e.g. the Applied tab's pipeline set
     remote_only: bool = False,
+    view: str = "recommended",                # recommended | local | remote
     min_score: Optional[int] = None,
     min_salary: Optional[int] = None,
     employment_type: Optional[str] = None,
@@ -115,6 +116,7 @@ def list_jobs(
         (min_score if min_score is not None else profile.minimum_score)
     jobs = repo.list_jobs(
         query=q, status=status, status_in=grouped, remote_only=remote_only,
+        view=view, geo_enabled=profile.geo_enabled,
         min_score=scored, min_salary=min_salary, sort=sort,
         employment_type=employment_type, entry_only=entry_only,
         exclude=exclude.split(",") if exclude else None,

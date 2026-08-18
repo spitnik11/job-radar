@@ -113,6 +113,7 @@ class CandidateProfile(BaseModel):
     include_remote: bool = True
     include_hybrid: bool = True
     include_onsite: bool = True
+    geo_enabled: bool = True          # when off, feed is remote-only (default discovery, no location)
     minimum_score: int = 65
     max_required_years: int = 5
 
