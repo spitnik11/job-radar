@@ -32,13 +32,14 @@ grows without a rewrite. This file records *what was deferred and why* so nothin
 - **Phase 2 (application tracking):** notes, auto-logged status events, pipeline Applied tab, Stage selector.
 - **Phase 3 (auto-sync + UI):** background sync (startup-if-stale + every 4h), collapsible simplified cards.
 - **Phase 4 (sync UX + sort/salary):** non-blocking /sync (fire-and-forget + status poll), sort (match/newest/salary) + min-salary floor, salary on cards; fixed far-hybrid location leak.
+- **Phase 4b (card actions):** split "Apply ↗" (opens real posting) from a mark-applied toggle.
+- **Phase 5 (freshness + banner):** stale pruning (`jobs.freshness`, EXPIRED postings hidden from feed, self-healing), "N new jobs" refresh banner (`/now` + `/new_jobs_count`, polled 90s).
 
 ## V1.1 (after the core is proven in daily use)
 
 Local embeddings + semantic rerank · GitHub repo importer · resume re-import · scam/trust engine
 (arrives with the first untrusted source) · FTS5 · precise geocoding ·
-Alembic baseline · daily digest · "N new jobs" live-refresh banner · freshness/stale pruning
-(spec §28 — jobs that fall out of filters currently persist until manually cleaned).
+Alembic baseline · daily digest · desktop notifications.
 
 ## V1.2+
 
