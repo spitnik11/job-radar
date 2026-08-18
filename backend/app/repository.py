@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, func, or_, select, update
 
 from .db import SessionLocal
 from .models import Job, JobEvent, JobNote
@@ -72,6 +72,7 @@ def _to_canonical(row: Job) -> CanonicalJob:
         flags=row.flags or [],
         suppressed=row.suppressed,
         suppress_reason=row.suppress_reason,
+        freshness=row.freshness,
         status=row.status,
     )
 
@@ -92,6 +93,7 @@ class SQLiteJobRepository:
                 row.flags = job.flags
                 row.score_breakdown = [f.model_dump() for f in job.score_breakdown]
                 row.last_seen_at = now
+                row.freshness = "ACTIVE"              # seen this sync (self-heals a false expiry)
                 if row.status not in USER_OWNED:      # preserve the user's decisions
                     row.status = job.status
                 n += 1
@@ -127,6 +129,8 @@ class SQLiteJobRepository:
                 stmt = stmt.where(Job.suppressed.is_(False))
             if not include_dismissed:
                 stmt = stmt.where(Job.status.notin_(["DISMISSED", "IGNORED"]))
+            stmt = stmt.where(Job.freshness != "EXPIRED")   # hide closed postings from the main feed
+            # (Saved/Applied tabs use status filters above, so expired jobs you acted on still show)
         if min_score is not None:
             stmt = stmt.where(Job.relevance_score >= min_score)
         if min_salary:
@@ -166,6 +170,31 @@ class SQLiteJobRepository:
                                detail=f"{old} → {status}"))
             s.commit()
             return _to_canonical(row)
+
+    def mark_stale(self, fetched_boards: set[tuple[str, str]], since) -> int:
+        """Expire ACTIVE jobs whose board synced OK this run but that weren't seen (posting closed).
+        Boards that failed to fetch aren't in `fetched_boards`, so their jobs are never expired."""
+        if not fetched_boards:
+            return 0
+        board_match = or_(*[and_(Job.source_type == s, Job.company_token == t)
+                            for s, t in fetched_boards])
+        with SessionLocal() as sess:
+            res = sess.execute(
+                update(Job)
+                .where(Job.freshness == "ACTIVE", Job.last_seen_at < since, board_match)
+                .values(freshness="EXPIRED")
+            )
+            sess.commit()
+            return res.rowcount or 0
+
+    def count_new(self, since, min_score: int = 0) -> int:
+        """New arrivals since `since` that would show in the main feed (for the refresh banner)."""
+        stmt = (select(func.count()).select_from(Job).where(
+            Job.freshness != "EXPIRED", Job.suppressed.is_(False),
+            Job.status.notin_(["DISMISSED", "IGNORED"]),
+            Job.relevance_score >= min_score, Job.first_seen_at > since))
+        with SessionLocal() as sess:
+            return sess.execute(stmt).scalar() or 0
 
     def add_note(self, job_id: str, text: str) -> Optional[list[dict]]:
         text = (text or "").strip()

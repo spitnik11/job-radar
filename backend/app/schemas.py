@@ -68,6 +68,7 @@ class CanonicalJob(BaseModel):
     flags: list[str] = Field(default_factory=list)
     suppressed: bool = False
     suppress_reason: Optional[str] = None
+    freshness: str = "ACTIVE"
 
     status: JobStatus = "NEW"
 
@@ -132,6 +133,7 @@ class JobListItem(BaseModel):
     salary_min: Optional[float] = None
     salary_max: Optional[float] = None
     apply_url: Optional[str] = None
+    freshness: str = "ACTIVE"
     top_skills: list[str]
     flags: list[str]
     status: JobStatus

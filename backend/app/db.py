@@ -28,10 +28,21 @@ def _set_sqlite_pragma(dbapi_conn, _record):
     cur.close()
 
 
+def _ensure_columns() -> None:
+    """Add new columns to an existing DB without dropping data. Guarded ALTER TABLE — a
+    minimal migration for the additive column case; a real column change would want Alembic."""
+    wanted = {"freshness": "freshness TEXT DEFAULT 'ACTIVE'"}
+    with ENGINE.begin() as conn:
+        have = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(jobs)")}
+        for col, ddl in wanted.items():
+            if col not in have:
+                conn.exec_driver_sql(f"ALTER TABLE jobs ADD COLUMN {ddl}")
+
+
 def init_db() -> None:
-    # create_all is additive — it adds new tables (job_notes/job_events) without touching
-    # existing data. Column-altering changes will need Alembic; new tables don't.
+    # create_all is additive for whole tables; _ensure_columns handles new columns.
     Base.metadata.create_all(ENGINE)
+    _ensure_columns()
     with SessionLocal() as s:
         row = s.get(SchemaMeta, "schema_version")
         if row is None:

@@ -76,6 +76,13 @@
   .ctop .t{font-weight:700;font-size:15px;color:var(--ink);letter-spacing:-.01em}
   .ctop .co,.ctop .dot,.ctop .tm{color:var(--subtle);font-size:14px}
   .cloc{font-size:13px;color:var(--muted);margin-top:2px}
+  .xflag{font-size:11px;font-weight:600;color:var(--ok);background:rgba(201,138,18,.12);padding:1px 8px;border-radius:9999px}
+  .newbanner{position:sticky;top:53px;z-index:3;display:flex;justify-content:center;padding:10px 0;
+    background:color-mix(in srgb,var(--canvas) 82%,transparent);border-bottom:1px solid var(--hair);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+  .newbanner button{background:var(--accent);color:#fff;border:0;border-radius:9999px;padding:8px 20px;
+    font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+  .newbanner button:hover{filter:brightness(1.06)}
   .card.open{background:var(--hover)}
   .more{font-size:14px;line-height:1.6;color:var(--ink);white-space:pre-wrap;margin:10px 0 4px;
     max-width:64ch;border-left:2px solid var(--hair);padding-left:12px}
@@ -188,6 +195,7 @@
   <!-- CENTER -->
   <div class="center">
     <div class="chead" id="chead"></div>
+    <div id="newbanner" class="newbanner" hidden></div>
     <div id="stream"></div>
   </div>
 
@@ -235,7 +243,7 @@ document.getElementById('ic-home').innerHTML=ICON.home;
 document.getElementById('ic-save').innerHTML=ICON.bookmark;
 document.getElementById('ic-apply').innerHTML=ICON.send;
 
-let jobs=[], tab='jobs', view='feed', sel=-1, detail=null, feedScroll=0;
+let jobs=[], tab='jobs', view='feed', sel=-1, detail=null, feedScroll=0, sinceTs=null;
 const TITLES={jobs:'Home',saved:'Saved',applied:'Applied'};
 const PIPELINE=['APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER'];
 const STAGES=['VIEWED','SAVED','APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN','DISMISSED'];
@@ -262,7 +270,22 @@ async function load(){
   const ms=document.getElementById('minsalary').value; if(ms!=='0') p.set('min_salary', ms);
   jobs=await api('/jobs?'+p.toString());
   sel=-1; view='feed'; renderHead(); renderFeed(); refreshBadges();
+  document.getElementById('newbanner').hidden=true;        // fresh baseline: clear the banner
+  if(tab==='jobs'){ try{ sinceTs=(await api('/now')).now; }catch(_){} }
 }
+
+async function checkNew(){
+  if(tab!=='jobs'||view!=='feed'||!sinceTs) return;
+  const min=document.getElementById('minscore').value;
+  let c=0; try{ c=(await api('/new_jobs_count?since='+encodeURIComponent(sinceTs)+'&min_score='+min)).count; }catch(_){}
+  const el=document.getElementById('newbanner');
+  if(c>0){
+    el.innerHTML='<button>↑ Show '+c+' new job'+(c>1?'s':'')+'</button>';
+    el.querySelector('button').onclick=()=>{ window.scrollTo(0,0); load(); };
+    el.hidden=false;
+  } else el.hidden=true;
+}
+setInterval(checkNew, 90000);   // while the 4h auto-sync runs, surface new arrivals
 
 function renderHead(){
   const h=document.getElementById('chead');
@@ -300,7 +323,7 @@ function card(j){
   return `<div class="card ${open?'open':''}" data-id="${j.id}">
     <div class="ring ${cls}"><span class="n">${j.relevance_score}</span></div>
     <div class="cbody">
-      <div class="ctop"><span class="t">${esc(j.title)}</span><span class="co">${esc(j.company_name)}</span></div>
+      <div class="ctop"><span class="t">${esc(j.title)}</span><span class="co">${esc(j.company_name)}</span>${j.freshness==='EXPIRED'?'<span class="xflag">Expired</span>':''}</div>
       <div class="cloc">${esc(loc)}</div>
       ${more}
       ${actionBar(j)}

@@ -59,8 +59,10 @@ def _ingest(repo: SQLiteJobRepository | None,
     engine = RuleBasedMatchEngine()
     targets = load_targets()
 
+    started_at = datetime.now(timezone.utc)     # jobs not re-seen after this get expired
     by_id: dict[str, CanonicalJob] = {}
     per_source: dict[str, dict] = {}
+    fetched_boards: set[tuple[str, str]] = set()
     dropped_location = 0
 
     with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=REQUEST_TIMEOUT,
@@ -77,6 +79,10 @@ def _ingest(repo: SQLiteJobRepository | None,
                 stat["errors"] += 1
                 print(f"[warn] {target.connector_id}:{target.token} fetch failed: {exc}")
                 continue
+
+            # board fetched OK -> its stored jobs not seen this run have closed (usajobs -> "federal")
+            board_token = "federal" if target.connector_id == "usajobs" else target.token
+            fetched_boards.add((target.connector_id, board_token))
 
             for raw in raws:
                 try:
@@ -106,9 +112,11 @@ def _ingest(repo: SQLiteJobRepository | None,
                 stat["kept"] += 1
 
     stored = repo.upsert_many(list(by_id.values()))
+    expired = repo.mark_stale(fetched_boards, started_at)     # close postings that vanished
     _record_sync(per_source)
 
     summary = {
+        "expired": expired,
         "targets": len(targets),
         "fetched": sum(s["fetched"] for s in per_source.values()),
         "kept": len(by_id),

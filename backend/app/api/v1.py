@@ -3,6 +3,7 @@ the backend and any frontend (this web UI now, Electron later). Breaking changes
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -41,6 +42,7 @@ def _list_item(job: CanonicalJob, profile: CandidateProfile) -> JobListItem:
         location_name=job.location_name, date_posted=job.date_posted,
         relevance_score=job.relevance_score, priority_score=job.priority_score,
         salary_min=job.salary_min, salary_max=job.salary_max, apply_url=job.apply_url,
+        freshness=job.freshness,
         top_skills=_top_skills(job, profile), flags=job.flags, status=job.status,
     )
 
@@ -60,6 +62,24 @@ def _detail(job: CanonicalJob, profile: CandidateProfile) -> JobDetail:
 @router.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@router.get("/now")
+def now():
+    return {"now": datetime.now(timezone.utc).isoformat()}
+
+
+@router.get("/new_jobs_count")
+def new_jobs_count(since: str, min_score: Optional[int] = None):
+    """Count of feed-eligible jobs first seen after `since` — drives the 'N new jobs' banner."""
+    try:
+        dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+    except ValueError:
+        return {"count": 0}
+    if dt.tzinfo:                                   # DB stores naive UTC — match it
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    floor = min_score if min_score is not None else load_profile().minimum_score
+    return {"count": repo.count_new(dt, floor)}
 
 
 @router.get("/version")

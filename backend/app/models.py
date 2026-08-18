@@ -73,6 +73,9 @@ class Job(Base):
     suppressed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     suppress_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
+    # ACTIVE = seen in the latest sync of its board; EXPIRED = board synced OK but posting gone (spec s.28)
+    freshness: Mapped[str] = mapped_column(String, default="ACTIVE", index=True)
+
     status: Mapped[str] = mapped_column(String, default="NEW", index=True)
 
 
