@@ -157,6 +157,23 @@ class SQLiteJobRepository:
         with SessionLocal() as s:
             return [_to_canonical(r) for r in s.execute(stmt).scalars()]
 
+    def rescore_all(self) -> int:
+        """Re-run scoring on every stored job using current profile + their saved enrichment
+        (no re-crawl). Lets a profile/GitHub-import change take effect immediately."""
+        from .config import load_profile
+        from .matching.scorer import RuleBasedMatchEngine
+        profile, engine = load_profile(), RuleBasedMatchEngine()
+        with SessionLocal() as s:
+            rows = s.execute(select(Job)).scalars().all()
+            for row in rows:
+                res = engine.score(profile, _to_canonical(row))
+                row.relevance_score, row.priority_score = res.relevance, res.priority
+                row.score_breakdown = [f.model_dump() for f in res.breakdown]
+                keep = [f for f in (row.flags or []) if f == "scam-risk"]   # preserve enrich-only flags
+                row.flags = keep + [f for f in res.flags if f not in keep]
+            s.commit()
+            return len(rows)
+
     def set_status(self, job_id: str, status: str) -> Optional[CanonicalJob]:
         with SessionLocal() as s:
             row = s.get(Job, job_id)

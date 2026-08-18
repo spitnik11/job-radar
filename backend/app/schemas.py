@@ -102,6 +102,7 @@ class CandidateProfile(BaseModel):
     skills: dict[str, float] = Field(default_factory=dict)
     professional_skills: set[str] = Field(default_factory=set)
     portfolio_skills: set[str] = Field(default_factory=set)
+    github_username: Optional[str] = None
 
     target_roles: list["TargetRole"] = Field(default_factory=list)
 

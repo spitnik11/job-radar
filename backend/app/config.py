@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -13,6 +14,21 @@ from .interfaces import SourceTarget
 from .schemas import CandidateProfile, TargetRole
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+GITHUB_CACHE = DATA_DIR / "github_evidence.cache.json"
+
+
+def load_github_evidence() -> dict:
+    if GITHUB_CACHE.exists():
+        try:
+            return json.loads(GITHUB_CACHE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def save_github_evidence(data: dict) -> None:
+    GITHUB_CACHE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    load_profile.cache_clear()          # profile merges this evidence — refresh it
 
 
 def _load_yaml(name: str) -> dict:
@@ -28,6 +44,13 @@ def load_profile() -> CandidateProfile:
     home = p.get("home", {})
     search = s.get("search", {})
 
+    portfolio = set(p.get("portfolio_skills", []))
+    skills = dict(p.get("skills", {}))
+    # merge auto-imported GitHub evidence: portfolio-proven, and add unseen skills at project weight
+    for skill in load_github_evidence().get("evidence", {}):
+        portfolio.add(skill)
+        skills.setdefault(skill, 0.6)
+
     return CandidateProfile(
         name=cand.get("name", "Candidate"),
         years_experience=cand.get("years_experience", 0),
@@ -36,9 +59,10 @@ def load_profile() -> CandidateProfile:
         home_city=home.get("city", ""),
         home_region=home.get("region", ""),
         home_country=home.get("country", "US"),
-        skills=p.get("skills", {}),
+        skills=skills,
         professional_skills=set(p.get("professional_skills", [])),
-        portfolio_skills=set(p.get("portfolio_skills", [])),
+        portfolio_skills=portfolio,
+        github_username=p.get("github", {}).get("username"),
         target_roles=[TargetRole(**r) for r in s.get("target_roles", [])],
         radius_miles=search.get("radius_miles", 45),
         include_remote=search.get("include_remote", True),

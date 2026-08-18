@@ -18,8 +18,9 @@ class NoteIn(BaseModel):
     text: str
 
 from .. import APP_VERSION, SCHEMA_VERSION
-from ..config import load_profile
+from ..config import load_github_evidence, load_profile, save_github_evidence
 from ..db import SessionLocal
+from ..github_import import import_github
 from ..models import SyncState
 from ..sync_manager import is_running, start_sync
 from ..repository import SQLiteJobRepository
@@ -169,6 +170,29 @@ def add_note(job_id: str, body: NoteIn):
 @router.get("/pipeline")
 def pipeline_statuses():
     return PIPELINE
+
+
+@router.get("/profile/github")
+def github_profile():
+    ev = load_github_evidence()
+    return {"username": ev.get("username") or load_profile().github_username,
+            "repos_scanned": ev.get("repos_scanned", 0), "skills": ev.get("skills", []),
+            "imported_at": ev.get("imported_at")}
+
+
+@router.post("/profile/github/import")
+def github_import_endpoint(username: Optional[str] = None):
+    u = username or load_profile().github_username
+    if not u:
+        raise HTTPException(400, "no GitHub username configured (set github.username in profile.yaml)")
+    try:
+        data = import_github(u)
+    except Exception as exc:  # noqa: BLE001 — surface a clean error to the UI
+        raise HTTPException(502, f"GitHub import failed: {exc}")
+    save_github_evidence(data)      # also clears the profile cache so scoring picks it up
+    rescored = repo.rescore_all()   # apply the enriched portfolio to existing jobs now
+    return {"username": data["username"], "repos_scanned": data["repos_scanned"],
+            "skills": data["skills"], "rescored": rescored}
 
 
 @router.get("/sources")

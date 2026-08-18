@@ -13,8 +13,9 @@ venv/
 backups/
 logs/
 
-# Local-only config overrides
+# Local-only config overrides + derived caches
 backend/data/*.local.yaml
+backend/data/*.cache.json
 
 # Editor
 .vscode/

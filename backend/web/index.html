@@ -88,6 +88,9 @@
     max-width:64ch;border-left:2px solid var(--hair);padding-left:12px}
   .more .tempty{color:var(--subtle)}
   .submeta{font-size:12px;color:var(--subtle);margin:-4px 0 12px;line-height:1.5}
+  .ghstat{font-size:13px;color:var(--muted);font-weight:600}
+  .ghskills{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .ghbtn{width:100%;margin-top:12px}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0 2px}
   .chip{font-size:12px;color:var(--muted);background:var(--lift);border:1px solid var(--hair-soft);
     padding:2px 9px;border-radius:9999px}
@@ -223,6 +226,12 @@
       <h3>Sources</h3>
       <div class="submeta">Auto-refreshes every 4h · “Sync new jobs” pulls fresh right now</div>
       <div id="sources"><div class="hint">No sync yet.</div></div>
+    </div>
+    <div class="panel">
+      <h3>Portfolio</h3>
+      <div class="submeta">Skill evidence from your public GitHub repos</div>
+      <div id="ghinfo"><div class="hint">Not imported yet.</div></div>
+      <button class="btn ghbtn" id="ghimport">Import from GitHub</button>
     </div>
     <div class="hint">j / k&nbsp;&nbsp;move &nbsp;·&nbsp; s&nbsp;save &nbsp;·&nbsp; a&nbsp;apply<br>x&nbsp;dismiss &nbsp;·&nbsp; enter&nbsp;open &nbsp;·&nbsp; /&nbsp;search</div>
   </aside>
@@ -506,7 +515,22 @@ function highlight(){ const cards=[...document.querySelectorAll('.card')];
   cards.forEach((c,i)=>c.classList.toggle('sel',i===sel));
   if(cards[sel]) cards[sel].scrollIntoView({block:'center'}); }
 
-renderSources(); load();
+async function renderGithub(){
+  const el=document.getElementById('ghinfo'); if(!el) return;
+  let g={}; try{ g=await api('/profile/github'); }catch(_){}
+  if(g.repos_scanned){
+    el.innerHTML=`<div class="ghstat">@${esc(g.username)} · ${g.repos_scanned} repos · ${g.skills.length} skills</div>
+      <div class="ghskills">${g.skills.slice(0,20).map(s=>`<span class="chip">${esc(s.replace(/_/g,' '))}</span>`).join('')}</div>`;
+    document.getElementById('ghimport').textContent='Re-import from GitHub';
+  } else el.innerHTML=`<div class="hint">@${esc(g.username||'—')} — not imported yet.</div>`;
+}
+document.getElementById('ghimport').onclick=async e=>{
+  const b=e.target; b.disabled=true; b.textContent='Importing…';
+  try{ await api('/profile/github/import',{method:'POST'}); }catch(_){}
+  b.disabled=false; await renderGithub(); load();   // jobs are rescored server-side on import
+};
+
+renderSources(); renderGithub(); load();
 </script>
 </body>
 </html>
