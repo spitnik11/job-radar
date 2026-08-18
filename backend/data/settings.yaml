@@ -41,3 +41,8 @@ sources:
   lever: true
   ashby: true
   usajobs: true      # inert until you add a free API key (see README / data/secrets.local.example.yaml)
+
+# Precise geocoding (Nominatim) as a fallback for cities not in the built-in Tampa-Bay table.
+# Off by default (core stays offline); turn on to tighten the radius for any city. Cached + rate-limited.
+geocoding:
+  enabled: false

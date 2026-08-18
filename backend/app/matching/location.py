@@ -87,6 +87,14 @@ def _resolve(job: CanonicalJob) -> Optional[tuple[float, float]]:
         for city, coords in CITY_COORDS.items():
             if city in low:
                 return coords
+    # fallback: precise geocoding for any city not in the static table (opt-in, cached)
+    from .. import geocode
+    if geocode.enabled():
+        for text in candidates:
+            if text:
+                coords = geocode.geocode(text)
+                if coords:
+                    return coords
     return None
 
 

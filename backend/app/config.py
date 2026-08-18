@@ -84,6 +84,11 @@ def load_usajobs_creds() -> tuple[Optional[str], Optional[str]]:
 
 
 @lru_cache(maxsize=1)
+def geocoding_enabled() -> bool:
+    return bool(_load_yaml("settings.yaml").get("geocoding", {}).get("enabled", False))
+
+
+@lru_cache(maxsize=1)
 def load_targets() -> list[SourceTarget]:
     """Flatten companies.yaml into per-connector fetch targets, honoring enabled sources."""
     companies = _load_yaml("companies.yaml")
