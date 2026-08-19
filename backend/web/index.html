@@ -56,7 +56,7 @@
   .sync{margin:16px 6px 0;padding:14px;border-radius:9999px;background:var(--accent);color:#fff;border:0;
     font-size:16px;font-weight:700;letter-spacing:.01em}
   .sync:hover{filter:brightness(1.06)} .sync:disabled{opacity:.6;cursor:default}
-  .navfoot{margin-top:auto;padding:10px 14px;font-size:12px;color:var(--subtle);font-family:var(--mono)}
+  .navfoot{padding:12px 14px 6px;font-size:12px;color:var(--subtle);font-family:var(--mono)}
   .streak{margin:14px 8px 0;padding:14px 12px;border:1px solid var(--hair);border-radius:14px;
     background:var(--surface);display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center}
   .streak .flame{width:46px;height:46px;object-fit:contain}
@@ -230,7 +230,7 @@
     <button class="navitem" data-nav="saved"><span class="ic" id="ic-save"></span><span class="lab">Saved</span><span class="badge" id="b-saved"></span></button>
     <button class="navitem" data-nav="applied"><span class="ic" id="ic-apply"></span><span class="lab">Applied</span><span class="badge" id="b-applied"></span></button>
     <button class="navitem" data-nav="results"><span class="ic" id="ic-results"></span><span class="lab">Results</span></button>
-    <button class="navitem profile" data-nav="profile" style="margin-top:auto"><span class="ic" id="ic-profile"></span><span class="lab">Profile</span></button>
+    <button class="navitem profile" data-nav="profile"><span class="ic" id="ic-profile"></span><span class="lab">Profile</span></button>
     <button class="sync" id="sync" title="Fetch the latest job postings from all sources (runs in the background)">Sync</button>
     <div class="streak" id="streak"></div>
     <div class="navfoot" id="foot">v0.1</div>
