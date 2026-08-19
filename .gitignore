@@ -20,3 +20,6 @@ backend/data/*.cache.json
 # Editor
 .vscode/
 .idea/
+
+# launcher log
+backend/jobber.log
