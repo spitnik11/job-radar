@@ -230,9 +230,9 @@
     <button class="navitem" data-nav="saved"><span class="ic" id="ic-save"></span><span class="lab">Saved</span><span class="badge" id="b-saved"></span></button>
     <button class="navitem" data-nav="applied"><span class="ic" id="ic-apply"></span><span class="lab">Applied</span><span class="badge" id="b-applied"></span></button>
     <button class="navitem" data-nav="results"><span class="ic" id="ic-results"></span><span class="lab">Results</span></button>
+    <button class="navitem profile" data-nav="profile" style="margin-top:auto"><span class="ic" id="ic-profile"></span><span class="lab">Profile</span></button>
     <button class="sync" id="sync" title="Fetch the latest job postings from all sources (runs in the background)">Sync</button>
     <div class="streak" id="streak"></div>
-    <button class="navitem profile" data-nav="profile" style="margin-top:auto"><span class="ic" id="ic-profile"></span><span class="lab">Profile</span></button>
     <div class="navfoot" id="foot">v0.1</div>
   </nav>
 
@@ -260,8 +260,8 @@
       <label class="frow" style="margin-top:12px">Minimum match
         <select id="minscore"><option value="0">Any</option><option value="65" selected>65+</option><option value="75">75+</option><option value="85">85+</option></select>
       </label>
-      <label class="frow">Sort by
-        <select id="sort"><option value="priority" selected>Best match</option><option value="score">Job score (high→low)</option><option value="score_asc">Job score (low→high)</option><option value="newest">Newest</option><option value="salary">Salary</option></select>
+      <label class="frow">Sort order
+        <select id="sort"><option value="recommended" selected>Recommended</option><option value="score">Job Score: Highest</option><option value="score_asc">Job Score: Lowest</option><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="salary">Salary</option></select>
       </label>
       <label class="frow">Min salary
         <select id="minsalary"><option value="0" selected>Any</option><option value="60000">$60k+</option><option value="80000">$80k+</option><option value="100000">$100k+</option><option value="120000">$120k+</option></select>
@@ -324,6 +324,8 @@ document.getElementById('ic-results').innerHTML=ICON.results;
 let jobs=[], tab='jobs', view='feed', sel=-1, detail=null, feedScroll=0, sinceTs=null;
 const BATCH=30; let shown=BATCH;                    // windowed render: keep the DOM light
 let semanticOn=false;                               // AI re-rank available? (set from /semantic/status)
+let allJobs=[];                                     // master pool (rebuilt only on Refresh/Sync)
+let sortMode='recommended';                         // client-side sort order (separate from view)
 const TITLES={jobs:'Home',saved:'Saved',applied:'Applied',profile:'Profile'};
 const PIPELINE=['APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER'];
 const STAGES=['VIEWED','SAVED','APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN','DISMISSED'];
@@ -337,11 +339,14 @@ function ago(iso){if(!iso)return '';
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 const j2 = id => jobs.find(j=>j.id===id) || (detail&&detail.id===id?detail:null);
 
+// Refresh (Sync / tab switch / refine-param change) rebuilds the master pool ONCE.
+// Local geo jobs are already appended by the backend when geo is enabled (view=recommended
+// returns remote+local, or remote-only when geo off). View/sort then filter IN MEMORY.
 async function load(){
   const p=new URLSearchParams();
   const q=document.getElementById('q').value.trim(); if(q) p.set('q',q);
   if(tab==='jobs'){
-    p.set('view', currentView);
+    p.set('view','recommended');           // full pool for this profile (remote + local if geo on)
     p.set('min_score',document.getElementById('minscore').value);
     if(document.getElementById('hidden').checked) p.set('include_suppressed','true');
     const et=document.getElementById('emptype').value; if(et) p.set('employment_type',et);
@@ -349,25 +354,47 @@ async function load(){
     const ex=document.getElementById('exclude').value.trim(); if(ex) p.set('exclude',ex);
   } else if(tab==='saved') p.set('status','SAVED');
   else if(tab==='applied') p.set('status_in', PIPELINE.join(','));
-  p.set('sort', document.getElementById('sort').value);
+  p.set('sort','priority');                 // always fetch in recommended order; sorting is client-side
+  p.set('limit','800');                     // one generous pool; view/sort filter it in memory
   const ms=document.getElementById('minsalary').value; if(ms!=='0') p.set('min_salary', ms);
-  jobs=await api('/jobs?'+p.toString());
-  sel=-1; view='feed'; shown=BATCH; renderHead(); renderFeed(); refreshBadges();
-  document.getElementById('newbanner').hidden=true;        // fresh baseline: clear the banner
+  allJobs=await api('/jobs?'+p.toString());
+  await rerankPool();                        // AI recommendation order, computed ONCE per refresh
+  applyView();                               // filter + sort in memory
+  refreshBadges();                           // badges only refresh on a real pool rebuild / action
+  document.getElementById('newbanner').hidden=true;
   if(tab==='jobs'){ try{ sinceTs=(await api('/now')).now; }catch(_){} }
-  rerankFeed();                                            // progressive: reorder once AI responds
 }
 
-async function rerankFeed(){
-  if(!semanticOn||tab!=='jobs'||view!=='feed'||!jobs.length) return;
-  if(document.getElementById('sort').value!=='priority') return;   // only augments Best-match
-  const ids=jobs.slice(0,60).map(j=>j.id);
+// pure in-memory: switching view/sort NEVER refetches, re-scrapes, or re-geolocates
+function filterView(list){
+  if(tab!=='jobs') return list;
+  if(currentView==='local')  return list.filter(j=>!j.remote);   // onsite/hybrid within radius
+  if(currentView==='remote') return list.filter(j=>j.remote);
+  return list;                                                   // recommended = full pool
+}
+function clientSort(list){
+  const s=sortMode, a=list.slice(), dt=j=>new Date((j.date_posted||'')+((j.date_posted&&!/[Z+]/.test(j.date_posted.slice(10)))?'Z':''))||0;
+  if(s==='score')      a.sort((x,y)=>y.relevance_score-x.relevance_score);
+  else if(s==='score_asc') a.sort((x,y)=>x.relevance_score-y.relevance_score);
+  else if(s==='newest')    a.sort((x,y)=>dt(y)-dt(x));
+  else if(s==='oldest')    a.sort((x,y)=>dt(x)-dt(y));
+  else if(s==='salary')    a.sort((x,y)=>(y.salary_max||0)-(x.salary_max||0));
+  return a;                                                      // 'recommended' keeps pool order
+}
+function applyView(){                          // PURE in-memory — no network, no geolocation, no rescore
+  jobs=clientSort(filterView(allJobs));
+  sel=-1; view='feed'; shown=BATCH; renderHead(); renderFeed();
+  if(semanticOn && currentView==='recommended' && sortMode==='recommended'){
+    const sub=document.querySelector('.chead .sub'); if(sub) sub.textContent=jobs.length+' jobs · smart-ranked';
+  }
+}
+async function rerankPool(){
+  if(!semanticOn||tab!=='jobs'||!allJobs.length) return;
+  const ids=allJobs.slice(0,60).map(j=>j.id);
   let res; try{ res=await api('/rerank',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})}); }catch(_){ return; }
-  if(!res||!res.order||tab!=='jobs'||view!=='feed') return;         // user may have moved on
+  if(!res||!res.order) return;
   const pos={}; res.order.forEach((id,i)=>pos[id]=i);
-  const head=jobs.slice(0,60).sort((a,b)=>(pos[a.id]??99)-(pos[b.id]??99));
-  jobs=head.concat(jobs.slice(60)); renderFeed();
-  const sub=document.querySelector('.chead .sub'); if(sub) sub.textContent=jobs.length+' jobs · smart-ranked';
+  allJobs=allJobs.slice(0,60).sort((a,b)=>(pos[a.id]??99)-(pos[b.id]??99)).concat(allJobs.slice(60));
 }
 
 async function checkNew(){
@@ -534,9 +561,10 @@ async function doAction(act, id){
   const jj=jobs.find(x=>x.id===id); if(jj) jj.status=newStatus;
 
   if(view==='detail'){ if(act==='dismiss') back(); else openDetail(id); refreshBadges(); return; }
-  const drop = (tab==='jobs'&&newStatus==='DISMISSED')||(tab==='saved'&&newStatus!=='SAVED')||(tab==='applied'&&newStatus!=='APPLIED');
+  const goneFromFeed=['DISMISSED','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN'];
+  const drop = (tab==='jobs'&&goneFromFeed.includes(newStatus))||(tab==='saved'&&newStatus!=='SAVED')||(tab==='applied'&&newStatus!=='APPLIED');
   if(drop){                                         // remove just this card, don't rebuild the feed
-    jobs=jobs.filter(x=>x.id!==id);
+    jobs=jobs.filter(x=>x.id!==id); allJobs=allJobs.filter(x=>x.id!==id);   // keep pool consistent
     const el=document.querySelector('.card[data-id="'+id+'"]'); if(el) el.remove();
   } else renderOneCard(id);
   renderHead(); refreshBadges();
@@ -605,7 +633,8 @@ document.getElementById('sync').onclick=async e=>{
 };
 
 let t; document.getElementById('q').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(load,220);});
-['minscore','hidden','sort','minsalary','emptype','entry'].forEach(id=>document.getElementById(id).addEventListener('change',load));
+['minscore','hidden','minsalary','emptype','entry'].forEach(id=>document.getElementById(id).addEventListener('change',load));
+document.getElementById('sort').addEventListener('change',e=>{ sortMode=e.target.value; if(tab==='jobs') applyView(); });   // sort is in-memory
 document.getElementById('exclude').addEventListener('input',()=>{clearTimeout(window._x);window._x=setTimeout(load,300);});
 
 document.addEventListener('keydown',e=>{
@@ -653,7 +682,7 @@ function setView(v){ currentView=v;
   document.querySelectorAll('#viewseg .segbtn').forEach(b=>b.classList.toggle('on',b.dataset.view===v)); }
 document.getElementById('viewseg').addEventListener('click',e=>{
   const b=e.target.closest('.segbtn'); if(!b||b.disabled) return; setView(b.dataset.view);
-  if(tab!=='jobs') setTab('jobs'); else load();
+  if(tab!=='jobs') setTab('jobs'); else applyView();   // in-memory filter — no refetch/rerank/geo
 });
 document.getElementById('geo-enabled').addEventListener('change',async e=>{
   applyGeoUI(e.target.checked);
