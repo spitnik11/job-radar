@@ -159,9 +159,14 @@ AshbyAdapter, GenericAdapter) so adding a new ATS = one file, mirroring how job 
   readiness check. `AUTO_QUEUED` status (hidden from feed) + a ⚡ queue button on cards + `/apply/queue`
   + `/apply/status`. New **Auto-Apply nav view**: Kit editor form + readiness banner + queue list +
   nav badge. No browser/submitting yet. → **User fills the Kit in the app before Phase A.**
-- **Phase A — Dry-run harness.** Playwright opens each queued job's `apply_url`, snapshots the form,
-  maps fields, generates answers, and **produces a filled-form preview + screenshot WITHOUT
-  submitting.** Proves reading/mapping/answering end-to-end, safely. Verify on ~10 jobs.
+- **Phase A — Dry-run harness. ✅ SHIPPED (commit e30f364).** `app/apply/` (formreader → mapping →
+  engine): headless Chromium opens a queued job's `apply_url`, reads the form generically, maps the
+  kit (deterministic rules; dropdown values matched to the form's own options; gating Qs beat generic
+  location; unmapped custom Qs surfaced as "open", never fabricated), screenshots, returns a preview.
+  **Never fills or submits.** CAPTCHA/login → "blocked" hand-off. `POST /apply/dryrun/{id}` +
+  `GET /apply/shot/{id}`; **Dry run** button per queued job in the UI. Needs `playwright` +
+  `python -m playwright install chromium` (must be in the SAME venv the server runs from).
+  Verified live: GitLab/Greenhouse (22 fields), Spotify/Lever (26), OpenAI/Ashby (10).
 - **Phase B — Greenhouse adapter + review-submit.** One ATS first (Greenhouse = cleanest). Fill →
   review gate → real submit → verify success → status/counter update. Run the first **50** here,
   each reviewed, until it's clean.
