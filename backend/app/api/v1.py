@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -372,6 +373,29 @@ def apply_status():
         "kit_ready": apply_kit.is_ready(),
         "kit_missing": apply_kit.missing_fields(),
     }
+
+
+@router.post("/apply/dryrun/{job_id:path}")
+def apply_dryrun(job_id: str):
+    """Open the job's apply page, read the form, and preview what the kit would fill — NO submit.
+    Sync (Playwright) endpoint: FastAPI runs it in a threadpool."""
+    job = repo.get(job_id)
+    if job is None:
+        raise HTTPException(404, "job not found")
+    if not apply_kit.is_ready():
+        raise HTTPException(400, {"error": "kit incomplete", "missing": apply_kit.missing_fields()})
+    from ..apply import engine as apply_engine
+    return apply_engine.dry_run({"id": job.id, "apply_url": job.apply_url,
+                                 "title": job.title, "company_name": job.company_name})
+
+
+@router.get("/apply/shot/{job_id:path}")
+def apply_shot(job_id: str):
+    from ..apply.engine import shot_path
+    path = shot_path(job_id)
+    if not path.is_file():
+        raise HTTPException(404, "no screenshot")
+    return FileResponse(str(path), media_type="image/png")
 
 
 @router.get("/streak")

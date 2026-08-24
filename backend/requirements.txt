@@ -7,3 +7,6 @@ pyyaml>=6.0
 python-multipart>=0.0.9
 markitdown[pdf,docx]>=0.0.1
 pytest>=8.0
+
+# auto-apply dry-run harness (Phase A) — after install run: python -m playwright install chromium
+playwright>=1.61

@@ -183,6 +183,20 @@
   .kf textarea.excl{resize:vertical;font-family:inherit}
   .act.queue:hover{background:rgba(201,138,18,.14);color:var(--ok)}
   .act.queue.on{color:var(--ok)}
+  .qwrap{border:1px solid var(--hair);border-radius:12px;margin-bottom:8px;background:var(--surface)}
+  .qwrap .rrow{border:0;margin:0;background:transparent}
+  .drybtn{flex:none;padding:6px 12px;font-size:12px;font-weight:600;border:1px solid var(--hair);border-radius:9px;background:var(--surface);color:var(--ink);cursor:pointer}
+  .drybtn:hover{border-color:var(--accent);color:var(--accent)} .drybtn:disabled{opacity:.6;cursor:default}
+  .dryprev{padding:0 14px 14px;font-size:12.5px}
+  .drymeta{color:var(--muted);padding:6px 0 10px}
+  .drytbl{width:100%;border-collapse:collapse}
+  .drytbl td{padding:6px 8px;border-top:1px solid var(--hair);vertical-align:top}
+  .drytbl td:first-child{color:var(--muted);width:44%}
+  .req{color:var(--bad)} .tag{font-size:10px;padding:1px 6px;border-radius:6px;background:var(--good-soft);color:var(--good)}
+  .dryopen{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(201,138,18,.10);color:var(--ink)}
+  .dryopen ul{margin:6px 0 0 16px;padding:0} .dryopen li{margin:2px 0;color:var(--muted)}
+  .dryblock{padding:10px 12px;border-radius:10px;background:rgba(201,138,18,.12);color:var(--ok);font-weight:600}
+  .dryfoot{margin-top:10px} .dryshot{color:var(--accent);font-weight:600;text-decoration:none}
   @media(max-width:560px){ .kform{grid-template-columns:1fr} }
 
   /* ---------- right column ---------- */
@@ -816,8 +830,23 @@ const ktext=(id,label,val)=>`<label class="kf"><span>${label}</span><input id="k
 const ksel=(id,label,val,opts)=>`<label class="kf"><span>${label}</span><select id="k-${id}" class="excl">${opts.map(([v,t])=>`<option value="${esc(v)}" ${v===val?'selected':''}>${esc(t)}</option>`).join('')}</select></label>`;
 const yn=v=>v===true?'yes':v===false?'no':'';
 function qrow(j){ const [cls]=band(j.relevance_score);
-  return `<div class="rrow" data-id="${esc(j.id)}"><span class="ring ${cls}" style="width:36px;height:36px;border-width:2px"><span class="n" style="font-size:13px">${j.relevance_score}</span></span>
-    <div><div class="rtitle">${esc(j.title)}</div><div class="rco">${esc(j.company_name)} · ${j.remote?'Remote':esc(j.location_name||'—')}</div></div></div>`; }
+  return `<div class="qwrap" data-id="${esc(j.id)}">
+    <div class="rrow">
+      <span class="ring ${cls}" style="width:36px;height:36px;border-width:2px"><span class="n" style="font-size:13px">${j.relevance_score}</span></span>
+      <div class="qopen" style="flex:1;cursor:pointer"><div class="rtitle">${esc(j.title)}</div><div class="rco">${esc(j.company_name)} · ${j.remote?'Remote':esc(j.location_name||'—')}</div></div>
+      <button class="btn drybtn" data-dry="${esc(j.id)}">Dry run</button>
+    </div>
+    <div class="dryprev" style="display:none"></div></div>`; }
+
+function renderDry(r){
+  if(r.status==='blocked') return `<div class="dryblock">⚠ ${esc(r.reason||'blocked')} — hand this one off to apply manually (no CAPTCHA/login is ever bypassed).</div>`;
+  if(r.status==='error')   return `<div class="dryblock">Couldn’t read this form: ${esc(r.reason||'')}</div>`;
+  const rows=(r.filled||[]).map(f=>`<tr><td>${esc(f.label||'')}${f.required?' <span class="req">*</span>':''}</td><td>${esc(f.option||f.value||'')}${f.type==='file'?' <span class="tag">file</span>':''}</td></tr>`).join('');
+  const open=(r.open||[]).length?`<div class="dryopen"><b>${r.open.length} question${r.open.length>1?'s':''} still need an answer</b> (drafted by the AI tier in a later phase):<ul>${r.open.map(q=>`<li>${esc(q.label)}${q.note?` <i>— ${esc(q.note)}</i>`:''}</li>`).join('')}</ul></div>`:'';
+  const shot=r.shot?`<a class="dryshot" href="/api/v1/apply/shot/${encodeURIComponent(r.job_id)}" target="_blank">View page screenshot ↗</a>`:'';
+  return `<div class="drymeta">Preview only — <b>nothing was submitted</b>. ${r.field_count||0} fields found · ${(r.filled||[]).length} auto-filled · ${(r.open||[]).length} open.</div>
+    <table class="drytbl"><tbody>${rows||'<tr><td colspan=2>No standard fields matched.</td></tr>'}</tbody></table>${open}<div class="dryfoot">${shot}</div>`;
+}
 
 async function renderApplyView(){
   const s=document.getElementById('stream');
@@ -850,7 +879,7 @@ async function renderApplyView(){
     </div>
     <div class="pcard">
       <h4>Queue · ${st.queued||0} jobs</h4>
-      <div class="submeta">Queue jobs from the feed with the ⚡ button. The runner (dry-run → review → submit) is the next build phase — nothing is submitted yet.</div>
+      <div class="submeta">Queue jobs from the feed with the ⚡ button, then hit <b>Dry run</b> to see exactly what the kit would fill on the real form — a safe preview with a screenshot, <b>nothing is submitted</b>. Review-then-submit comes in the next phase.</div>
       <div id="queuelist" style="margin-top:10px"></div>
     </div>
   </div>`;
@@ -873,7 +902,18 @@ async function renderApplyView(){
   let queue=[]; try{ queue=await api('/apply/queue'); }catch(_){}
   document.getElementById('queuelist').innerHTML = queue.length? queue.map(qrow).join('')
     : '<div class="empty">No jobs queued yet. Use the ⚡ button on a job in the feed to queue it.</div>';
-  document.querySelectorAll('#queuelist .rrow').forEach(r=>r.onclick=()=>openDetail(r.dataset.id));
+  document.querySelectorAll('#queuelist .qopen').forEach(o=>o.onclick=()=>openDetail(o.closest('.qwrap').dataset.id));
+  document.querySelectorAll('#queuelist .drybtn').forEach(btn=>btn.onclick=async ()=>{
+    const prev=btn.closest('.qwrap').querySelector('.dryprev');
+    if(prev.style.display==='block' && prev.dataset.done){ prev.style.display='none'; prev.dataset.done=''; return; }
+    if(!st.kit_ready){ prev.style.display='block'; prev.innerHTML=`<div class="dryblock">Fill your Application Kit first — still need: ${(st.kit_missing||[]).join(', ')}</div>`; return; }
+    prev.style.display='block'; prev.innerHTML='<div class="drymeta">Opening the apply page and reading the form… (~5s, nothing is submitted)</div>';
+    btn.disabled=true; const old=btn.textContent; btn.textContent='Running…';
+    try{ const r=await api('/apply/dryrun/'+encodeURIComponent(btn.dataset.dry),{method:'POST'});
+      prev.innerHTML=renderDry(r); prev.dataset.done='1';
+    }catch(e){ prev.innerHTML='<div class="dryblock">Dry run failed. Is the job page reachable?</div>'; }
+    btn.disabled=false; btn.textContent=old;
+  });
 }
 
 api('/semantic/status').then(s=>{semanticOn=!!s.enabled;}).catch(()=>{});
