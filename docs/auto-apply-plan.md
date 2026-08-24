@@ -167,9 +167,20 @@ AshbyAdapter, GenericAdapter) so adding a new ATS = one file, mirroring how job 
   `GET /apply/shot/{id}`; **Dry run** button per queued job in the UI. Needs `playwright` +
   `python -m playwright install chromium` (must be in the SAME venv the server runs from).
   Verified live: GitLab/Greenhouse (22 fields), Spotify/Lever (26), OpenAI/Ashby (10).
-- **Phase B — Greenhouse adapter + review-submit.** One ATS first (Greenhouse = cleanest). Fill →
-  review gate → real submit → verify success → status/counter update. Run the first **50** here,
-  each reviewed, until it's clean.
+- **Phase B — Fill & verify to submission-ready. ✅ SHIPPED (commit 255906e).** `prepare(job)` fills
+  the live form for real (type/upload/select/radio/consent), reads back every required field with a
+  fresh DOM scan, and reports **ready_to_submit** or the exact blockers. **Stops at the armed Submit
+  button — never clicks it** (kept out of the engine deliberately; a real submit is human-gated and
+  the safety classifier blocks automated live-employer submission, correctly). Edge cases handled:
+  invisible reCAPTCHA badge vs visible challenge, React inputs that revert `fill()` (retry by typing),
+  async file dropzones that re-render (upload last + fresh required-scan), required select/radio/
+  consent, multi-step/disabled/validation. `POST /apply/prepare/{id}`, UI **Fill & check** button.
+  Verified by 5 engine tests vs local mocks reproducing each edge case (live-employer auto-fill can't
+  be a CI harness — both a safety boundary and it would pollute real ATS records).
+  - **Still open for a true end-to-end live submit:** the actual Submit click + confirmation parse +
+    counter bump (human-approved, per §8), a per-ATS FormAdapter for the React quirks (Ashby upload
+    re-render, Lever location autocomplete), and the LLM answer-tier so required custom questions
+    (employment agreements, "current company", essays) get real answers instead of being blockers.
 - **Phase C — Lever + Ashby adapters + custom-Q agent (Grok/Claude tiering).** Broaden coverage;
   harden custom-question answering + EEO handling; keep review mode.
 - **Phase D — Unattended + scale.** Unlock unattended submission per validated adapter; raise the
