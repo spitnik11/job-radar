@@ -48,7 +48,7 @@ def _rules(kit: ApplicationKit):
         (lambda l: "state" in l or "province" in l,         kit.state),
         (lambda l: "country" in l,                          kit.country),
         (lambda l: "salary" in l or "compensation" in l or "desired pay" in l, kit.desired_salary),
-        (lambda l: "start date" in l or "available" in l or "notice period" in l, kit.start_date),
+        (lambda l: "start date" in l or "available" in l or "notice period" in l or ("when" in l and "start" in l) or "start a new role" in l, kit.start_date),
         (lambda l: "years" in l and ("experience" in l or "exp" in l), str(kit.years_experience or "")),
         (lambda l: "gender" in l,                           kit.gender),
         (lambda l: "race" in l or "ethnic" in l,            kit.race),
@@ -86,28 +86,49 @@ def map_fields(kit: ApplicationKit, fields: list[dict]) -> dict:
     filled, open_q = [], []
     for f in fields:
         label = (f.get("label") or "").lower()
-        if f["type"] == "file":     # every file input on an application form is a document upload.
+        req = f.get("required", False)
+        jr = f.get("jr")
+        ftype, ftag = f.get("type", ""), f.get("tag", "")
+        if ftype == "file":         # every file input on an application form is a document upload.
             if "cover" in label:    # we don't hold a cover-letter FILE (only text) -> flag it
-                open_q.append({"label": f.get("label"), "type": "file",
-                               "required": f.get("required", False), "options": [],
-                               "note": "cover-letter file upload — kit stores cover-letter text, not a file"})
+                open_q.append({"label": f.get("label"), "type": "file", "jr": jr, "required": req,
+                               "options": [], "note": "cover-letter file upload — kit stores text, not a file"})
             else:                   # résumé/CV upload — the field's own label is often wrong, so name it plainly
-                filled.append({"label": "Résumé (upload)", "value": kit.resume_path,
-                               "option": None, "type": "file", "required": f.get("required", False)})
+                filled.append({"label": "Résumé (upload)", "value": kit.resume_path, "option": None,
+                               "type": "file", "jr": jr, "required": req})
+            continue
+        if ftag == "radio":     # pick the option whose text matches the kit value
+            val = next((v for pred, v in rules if pred(label)), None)
+            opts = f.get("options") or []
+            texts = [o["text"] for o in opts]
+            chosen = _match_option(str(val), texts) if val not in (None, "") else None
+            if chosen is None:
+                open_q.append({"label": f.get("label") or f.get("name"), "type": "radio", "jr": jr,
+                               "required": req, "options": texts})
+            else:
+                ojr = next((o["jr"] for o in opts if o["text"] == chosen), None)
+                filled.append({"label": f.get("label"), "value": chosen, "option": chosen,
+                               "type": "radio", "jr": ojr, "required": req})
+            continue
+        if ftype == "checkbox":     # lone checkbox: only auto-check consent/agreement/acknowledge
+            if any(w in label for w in ("agree", "consent", "acknowledg", "confirm", "certify", "terms", "privacy", "read the above")):
+                filled.append({"label": f.get("label"), "value": "checked", "option": None,
+                               "type": "checkbox", "jr": jr, "required": req, "check": True})
+            else:                        # optional demographic/pronoun boxes -> leave for review
+                open_q.append({"label": f.get("label") or f.get("name"), "type": "checkbox", "jr": jr,
+                               "required": req, "options": []})
             continue
         val = next((v for pred, v in rules if pred(label)), None)
         if val in (None, ""):
-            # unmapped: an essay/screener we don't have a rule for -> leave for the answer tier
             open_q.append({"label": f.get("label") or f.get("name") or "(unlabeled)",
-                           "type": f["type"], "required": f.get("required", False),
-                           "options": f.get("options") or []})
+                           "type": ftype, "jr": jr, "required": req, "options": f.get("options") or []})
             continue
         opts = f.get("options") or []
         option = _match_option(str(val), opts) if opts else None
         if opts and option is None:                     # had a dropdown but our value didn't fit -> flag it
-            open_q.append({"label": f.get("label"), "type": f["type"], "required": f.get("required", False),
+            open_q.append({"label": f.get("label"), "type": ftype, "jr": jr, "required": req,
                            "options": opts, "note": f"kit has '{val}' but no matching option"})
             continue
         filled.append({"label": f.get("label") or f.get("name"), "value": str(val),
-                       "option": option, "type": f["type"], "required": f.get("required", False)})
+                       "option": option, "type": ftype, "jr": jr, "required": req})
     return {"filled": filled, "open": open_q}

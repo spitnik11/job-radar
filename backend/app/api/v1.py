@@ -389,6 +389,21 @@ def apply_dryrun(job_id: str):
                                  "title": job.title, "company_name": job.company_name})
 
 
+@router.post("/apply/prepare/{job_id:path}")
+def apply_prepare(job_id: str):
+    """Actually fill the job's live form, read back every required field's state, and report whether
+    it's submission-ready plus every blocker that would stop it. Never clicks Submit — the real
+    submission is a human action. Sync (Playwright) endpoint; runs in a threadpool."""
+    job = repo.get(job_id)
+    if job is None:
+        raise HTTPException(404, "job not found")
+    if not apply_kit.is_ready():
+        raise HTTPException(400, {"error": "kit incomplete", "missing": apply_kit.missing_fields()})
+    from ..apply import engine as apply_engine
+    return apply_engine.prepare({"id": job.id, "apply_url": job.apply_url,
+                                 "title": job.title, "company_name": job.company_name})
+
+
 @router.get("/apply/shot/{job_id:path}")
 def apply_shot(job_id: str):
     from ..apply.engine import shot_path

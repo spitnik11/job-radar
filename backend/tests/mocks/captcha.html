@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>Mock Apply — CAPTCHA challenge</title>
+<h1>Apply</h1>
+<form onsubmit="return false">
+  <label>First Name *<input required></label>
+  <label>Email *<input type="email" required></label>
+  <button type="submit">Submit Application</button>
+</form>
+<!-- a REAL, visible challenge dialog (large) — must block, unlike the small invisible badge -->
+<iframe title="recaptcha challenge expires in two minutes" src="https://www.google.com/recaptcha/api2/bframe"
+        style="width:320px;height:420px;border:1px solid #ccc"></iframe>

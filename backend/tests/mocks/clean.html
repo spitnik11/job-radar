@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><title>Mock Apply — Clean</title>
+<style>body{font-family:sans-serif;max-width:640px;margin:24px auto}label{display:block;margin:10px 0}
+input,select,textarea{width:100%;padding:6px}.grecaptcha-badge{position:fixed;bottom:14px;right:14px;width:256px;height:60px;background:#eee}</style>
+<h1>Apply</h1>
+<form id="f" onsubmit="return false">
+  <label>First Name *<input id="fn" required></label>
+  <label>Last Name *<input id="ln" required></label>
+  <label>Email *<input id="em" type="email" required></label>
+  <label>Phone *<input id="ph" type="tel" required></label>
+  <!-- React-style controlled input: reverts a programmatic .value set unless real keystrokes fire -->
+  <label>Legal Name *<input id="legal" required></label>
+  <label>Résumé *<input id="cv" type="file" required></label>
+  <label>Gender<select id="g"><option value="">Select…</option><option>Male</option><option>Female</option><option>Decline to self-identify</option></select></label>
+  <fieldset><legend>Are you authorized to work in the US? *</legend>
+    <label><input type="radio" name="auth" value="yes" required> Yes</label>
+    <label><input type="radio" name="auth" value="no"> No</label></fieldset>
+  <label>When can you start a new role? *<input id="start" required></label>
+  <label><input type="checkbox" id="consent" required> I certify the above is accurate *</label>
+  <button type="submit">Submit Application</button>
+</form>
+<div class="grecaptcha-badge"><iframe title="reCAPTCHA" src="https://www.google.com/recaptcha/api2/anchor" style="width:256px;height:60px;border:0"></iframe></div>
+<script>
+  const el=document.getElementById('legal'); let k=0;
+  el.addEventListener('keydown',()=>k=Date.now());
+  el.addEventListener('input',()=>{ if(Date.now()-k>150) el.value=''; });   // programmatic fill reverts
+</script>
