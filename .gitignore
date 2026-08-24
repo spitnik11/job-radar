@@ -23,3 +23,6 @@ backend/data/*.cache.json
 
 # launcher log
 backend/jobber.log
+
+# local application kit (PII) + other local json
+backend/data/*.local.json

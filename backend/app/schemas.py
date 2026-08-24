@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 WorkplaceType = Literal["remote", "hybrid", "onsite", "unknown"]
 JobStatus = Literal[
-    "NEW", "VIEWED", "SAVED", "APPLYING", "APPLIED",
+    "NEW", "VIEWED", "SAVED", "AUTO_QUEUED", "APPLYING", "APPLIED",
     "PHONE_SCREEN", "INTERVIEW", "FINAL_INTERVIEW", "OFFER",
     "REJECTED", "WITHDRAWN", "DISMISSED", "IGNORED",
 ]

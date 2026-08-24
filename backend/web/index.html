@@ -175,6 +175,15 @@
   .rrow:hover{border-color:var(--subtle)}
   .rtitle{font-weight:700;font-size:14px;letter-spacing:-.01em}
   .rco{font-size:12px;color:var(--muted);margin-top:2px}
+  .kbanner{padding:10px 14px;border-radius:12px;font-size:13px;font-weight:600;margin-bottom:16px}
+  .kbanner.ok{color:var(--good);background:var(--good-soft)} .kbanner.warn{color:var(--ok);background:rgba(201,138,18,.12)}
+  .kform{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .kf{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+  .kf .excl,.kf select{width:100%}
+  .kf textarea.excl{resize:vertical;font-family:inherit}
+  .act.queue:hover{background:rgba(201,138,18,.14);color:var(--ok)}
+  .act.queue.on{color:var(--ok)}
+  @media(max-width:560px){ .kform{grid-template-columns:1fr} }
 
   /* ---------- right column ---------- */
   aside{width:350px;flex:none;position:sticky;top:0;height:100vh;overflow-y:auto;padding:8px 18px 30px;
@@ -230,6 +239,7 @@
     <button class="navitem" data-nav="saved"><span class="ic" id="ic-save"></span><span class="lab">Saved</span><span class="badge" id="b-saved"></span></button>
     <button class="navitem" data-nav="applied"><span class="ic" id="ic-apply"></span><span class="lab">Applied</span><span class="badge" id="b-applied"></span></button>
     <button class="navitem" data-nav="results"><span class="ic" id="ic-results"></span><span class="lab">Results</span></button>
+    <button class="navitem" data-nav="apply"><span class="ic" id="ic-apply2"></span><span class="lab">Auto-Apply</span><span class="badge" id="b-queue"></span></button>
     <button class="navitem profile" data-nav="profile"><span class="ic" id="ic-profile"></span><span class="lab">Profile</span></button>
     <button class="sync" id="sync" title="Fetch the latest job postings from all sources (runs in the background)">Sync</button>
     <div class="streak" id="streak"></div>
@@ -314,19 +324,21 @@ const ICON={
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
   profile:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/></svg>',
   results:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21V9M4 21v-5M12 21V5M16 21v-9M20 21V3"/></svg>',
+  zap:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>',
 };
 document.getElementById('ic-home').innerHTML=ICON.home;
 document.getElementById('ic-save').innerHTML=ICON.bookmark;
 document.getElementById('ic-apply').innerHTML=ICON.send;
 document.getElementById('ic-profile').innerHTML=ICON.profile;
 document.getElementById('ic-results').innerHTML=ICON.results;
+document.getElementById('ic-apply2').innerHTML=ICON.zap;
 
 let jobs=[], tab='jobs', view='feed', sel=-1, detail=null, feedScroll=0, sinceTs=null;
 const BATCH=30; let shown=BATCH;                    // windowed render: keep the DOM light
 let semanticOn=false;                               // AI re-rank available? (set from /semantic/status)
 let allJobs=[];                                     // master pool (rebuilt only on Refresh/Sync)
 let sortMode='recommended';                         // client-side sort order (separate from view)
-const TITLES={jobs:'Home',saved:'Saved',applied:'Applied',profile:'Profile'};
+const TITLES={jobs:'Home',saved:'Saved',applied:'Applied',profile:'Profile',results:'Results',apply:'Auto-Apply'};
 const PIPELINE=['APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER'];
 const STAGES=['VIEWED','SAVED','APPLYING','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN','DISMISSED'];
 const nice=s=>s.toLowerCase().replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
@@ -418,6 +430,8 @@ function renderHead(){
     h.innerHTML=`<h2>Profile</h2>`;
   }else if(tab==='results'){
     h.innerHTML=`<h2>Results</h2>`;
+  }else if(tab==='apply'){
+    h.innerHTML=`<h2>Auto-Apply</h2>`;
   }else{
     h.innerHTML=`<h2>${TITLES[tab]}</h2><span class="sub">${jobs.length} jobs</span>`;
   }
@@ -428,6 +442,7 @@ function actionBar(j){
   return `<div class="acts">
     <button class="act save ${saved?'on':''}" data-act="save" data-id="${j.id}" title="${saved?'Saved':'Save'}"><span class="ic">${ICON.bookmark}</span></button>
     <button class="act apply ${applied?'on':''}" data-act="apply" data-id="${j.id}" title="${applied?'Marked applied — click to undo':'Mark as applied'}"><span class="ic">${ICON.check}</span>${applied?'Applied':''}</button>
+    <button class="act queue" data-act="queue" data-id="${j.id}" title="Queue for auto-apply"><span class="ic">${ICON.zap}</span></button>
     <button class="act dismiss" data-act="dismiss" data-id="${j.id}" title="Not interested"><span class="ic">${ICON.x}</span></button>
     <button class="act visit spacer" data-act="visit" data-id="${j.id}" title="Open the job posting to apply"><span class="ic">${ICON.ext}</span>Apply ↗</button>
     <button class="act why" data-act="details" data-id="${j.id}">Details ›</button>
@@ -552,6 +567,7 @@ async function doAction(act, id){
   let newStatus=j.status;
   if(act==='save')         newStatus = j.status==='SAVED' ? 'VIEWED' : 'SAVED';
   else if(act==='apply')   newStatus = j.status==='APPLIED' ? 'VIEWED' : 'APPLIED';  // toggle only, no navigation
+  else if(act==='queue')   newStatus = j.status==='AUTO_QUEUED' ? 'VIEWED' : 'AUTO_QUEUED';  // queue for auto-apply
   else if(act==='dismiss') newStatus='DISMISSED';
   // persist
   if(newStatus==='SAVED') await api('/jobs/'+encodeURIComponent(id)+'/save',{method:'POST'});
@@ -561,7 +577,7 @@ async function doAction(act, id){
   const jj=jobs.find(x=>x.id===id); if(jj) jj.status=newStatus;
 
   if(view==='detail'){ if(act==='dismiss') back(); else openDetail(id); refreshBadges(); return; }
-  const goneFromFeed=['DISMISSED','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN'];
+  const goneFromFeed=['DISMISSED','AUTO_QUEUED','APPLIED','PHONE_SCREEN','INTERVIEW','FINAL_INTERVIEW','OFFER','REJECTED','WITHDRAWN'];
   const drop = (tab==='jobs'&&goneFromFeed.includes(newStatus))||(tab==='saved'&&newStatus!=='SAVED')||(tab==='applied'&&newStatus!=='APPLIED');
   if(drop){                                         // remove just this card, don't rebuild the feed
     jobs=jobs.filter(x=>x.id!==id); allJobs=allJobs.filter(x=>x.id!==id);   // keep pool consistent
@@ -587,6 +603,7 @@ function setTab(t){ tab=t; sel=-1; expanded.clear();   // Home/tab click = colla
   document.getElementById('newbanner').hidden=true;
   if(t==='profile'){ view='profile'; renderHead(); renderProfileView(); }
   else if(t==='results'){ view='results'; renderHead(); renderResultsView(); }
+  else if(t==='apply'){ view='apply'; renderHead(); renderApplyView(); }
   else load();
 }
 document.querySelectorAll('.navitem').forEach(b=>b.onclick=()=>setTab(b.dataset.nav));
@@ -597,6 +614,7 @@ async function refreshBadges(){
   document.getElementById('b-saved').textContent=saved||'';
   document.getElementById('b-applied').textContent=applied||'';
   document.getElementById('b-jobs').textContent = tab==='jobs'?jobs.length:'';
+  try{ const qn=(await api('/apply/queue?')).length; document.getElementById('b-queue').textContent=qn||''; }catch(_){}
   renderStreak();
 }
 
@@ -791,6 +809,71 @@ async function renderResultsView(){
   document.getElementById('resultlist').innerHTML = jobs.length ? jobs.map(resultRow).join('')
     : `<div class="empty">No ${resultFilter==='OFFER'?'offers':'declines'} yet. Mark a job ${resultFilter==='OFFER'?'Offer':'Rejected'} (or connect email) to populate this.</div>`;
   document.querySelectorAll('#resultlist .rrow').forEach(r=>r.onclick=()=>openDetail(r.dataset.id));
+}
+
+// ---------- AUTO-APPLY view (Phase 0: Application Kit + queue) ----------
+const ktext=(id,label,val)=>`<label class="kf"><span>${label}</span><input id="k-${id}" class="excl" value="${esc(val==null?'':String(val))}" autocomplete="off"></label>`;
+const ksel=(id,label,val,opts)=>`<label class="kf"><span>${label}</span><select id="k-${id}" class="excl">${opts.map(([v,t])=>`<option value="${esc(v)}" ${v===val?'selected':''}>${esc(t)}</option>`).join('')}</select></label>`;
+const yn=v=>v===true?'yes':v===false?'no':'';
+function qrow(j){ const [cls]=band(j.relevance_score);
+  return `<div class="rrow" data-id="${esc(j.id)}"><span class="ring ${cls}" style="width:36px;height:36px;border-width:2px"><span class="n" style="font-size:13px">${j.relevance_score}</span></span>
+    <div><div class="rtitle">${esc(j.title)}</div><div class="rco">${esc(j.company_name)} · ${j.remote?'Remote':esc(j.location_name||'—')}</div></div></div>`; }
+
+async function renderApplyView(){
+  const s=document.getElementById('stream');
+  let kit={}, st={}; try{ [kit,st]=await Promise.all([api('/apply/kit'),api('/apply/status')]); }catch(_){}
+  const banner = st.kit_ready
+    ? `<div class="kbanner ok">✓ Application kit ready · ${st.queued||0} queued · ${st.applied||0} applied</div>`
+    : `<div class="kbanner warn">⚠ Kit incomplete — still need: ${(st.kit_missing||[]).join(', ')||'—'}</div>`;
+  const YN=[['','—'],['yes','Yes'],['no','No']];
+  s.innerHTML=`<div class="pview">
+    ${banner}
+    <div class="pcard">
+      <h4>Application Kit</h4>
+      <div class="submeta">Stored locally on this machine (gitignored) — nothing is sent anywhere until you run auto-apply. EEO fields are voluntary; default is “Decline to self-identify”.</div>
+      <div class="kform">
+        ${ktext('full_name','Full name',kit.full_name)}${ktext('email','Email',kit.email)}
+        ${ktext('phone','Phone',kit.phone)}${ktext('resume_path','Résumé file path (local)',kit.resume_path)}
+        ${ktext('city','City',kit.city)}${ktext('state','State',kit.state)}
+        ${ktext('linkedin','LinkedIn URL',kit.linkedin)}${ktext('github','GitHub URL',kit.github)}
+        ${ktext('portfolio','Portfolio URL',kit.portfolio)}${ktext('desired_salary','Desired salary',kit.desired_salary)}
+        ${ksel('authorized_us','Authorized to work in US?',yn(kit.authorized_us),YN)}${ksel('needs_sponsorship','Need visa sponsorship?',yn(kit.needs_sponsorship),YN)}
+        ${ksel('willing_relocate','Willing to relocate?',yn(kit.willing_relocate),YN)}${ktext('work_pref','Work pref (remote/hybrid/onsite/any)',kit.work_pref)}
+        ${ktext('start_date','Earliest start',kit.start_date)}${ktext('years_experience','Years of experience',kit.years_experience)}
+        ${ktext('education_level','Education level',kit.education_level)}${ktext('hear_about_us','How did you hear about us',kit.hear_about_us)}
+        ${ktext('gender','Gender (optional)',kit.gender)}${ktext('race','Race / ethnicity (optional)',kit.race)}
+        ${ktext('veteran_status','Veteran status (optional)',kit.veteran_status)}${ktext('disability_status','Disability status (optional)',kit.disability_status)}
+        ${ksel('cover_letter_mode','Cover letters',kit.cover_letter_mode||'tailored',[['tailored','Tailored per job (AI)'],['template','My template'],['skip','Skip when optional']])}
+      </div>
+      <label class="kf" style="margin-top:10px"><span>Notes / edge-case answers</span><textarea id="k-notes" class="excl" rows="3">${esc(kit.notes||'')}</textarea></label>
+      <div style="margin-top:12px"><button class="btn primary" id="ksave">Save kit</button><span id="ksaved" class="hint" style="margin-left:10px"></span></div>
+    </div>
+    <div class="pcard">
+      <h4>Queue · ${st.queued||0} jobs</h4>
+      <div class="submeta">Queue jobs from the feed with the ⚡ button. The runner (dry-run → review → submit) is the next build phase — nothing is submitted yet.</div>
+      <div id="queuelist" style="margin-top:10px"></div>
+    </div>
+  </div>`;
+  document.getElementById('ksave').onclick=async ()=>{
+    const g=id=>document.getElementById('k-'+id), b=v=>v==='yes'?true:v==='no'?false:null;
+    const data={ full_name:g('full_name').value.trim(), email:g('email').value.trim(), phone:g('phone').value.trim(),
+      city:g('city').value.trim(), state:g('state').value.trim(), linkedin:g('linkedin').value.trim(),
+      github:g('github').value.trim(), portfolio:g('portfolio').value.trim(), resume_path:g('resume_path').value.trim(),
+      desired_salary:g('desired_salary').value.trim(), authorized_us:b(g('authorized_us').value),
+      needs_sponsorship:b(g('needs_sponsorship').value), willing_relocate:b(g('willing_relocate').value),
+      work_pref:g('work_pref').value.trim(), start_date:g('start_date').value.trim(),
+      years_experience:parseInt(g('years_experience').value)||null, education_level:g('education_level').value.trim(),
+      hear_about_us:g('hear_about_us').value.trim(), gender:g('gender').value.trim(), race:g('race').value.trim(),
+      veteran_status:g('veteran_status').value.trim(), disability_status:g('disability_status').value.trim(),
+      cover_letter_mode:g('cover_letter_mode').value, notes:g('notes').value };
+    const r=await api('/apply/kit',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({data})});
+    document.getElementById('ksaved').textContent = r.ready?'✓ Saved — kit ready':('Saved — still need: '+(r.missing||[]).join(', '));
+    refreshBadges();
+  };
+  let queue=[]; try{ queue=await api('/apply/queue'); }catch(_){}
+  document.getElementById('queuelist').innerHTML = queue.length? queue.map(qrow).join('')
+    : '<div class="empty">No jobs queued yet. Use the ⚡ button on a job in the feed to queue it.</div>';
+  document.querySelectorAll('#queuelist .rrow').forEach(r=>r.onclick=()=>openDetail(r.dataset.id));
 }
 
 api('/semantic/status').then(s=>{semanticOn=!!s.enabled;}).catch(()=>{});

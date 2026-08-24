@@ -27,7 +27,7 @@ from ..db import SessionLocal
 from ..github_import import import_github
 from ..models import SyncState
 from ..sync_manager import is_running, start_sync
-from .. import career, email_tracker, geocode, profiles, resume_parser, semantic
+from .. import apply_kit, career, email_tracker, geocode, profiles, resume_parser, semantic
 from ..streak import state as streak_state
 from ..repository import SQLiteJobRepository
 from ..schemas import CandidateProfile, CanonicalJob, JobDetail, JobListItem
@@ -331,6 +331,47 @@ def email_check():
 @router.get("/career/report")
 def career_report():
     return career.report()
+
+
+# ---- Auto-apply: Application Kit + queue (Phase 0; no browser/submitting yet) ----
+
+class KitIn(BaseModel):
+    data: dict
+
+
+@router.get("/apply/kit")
+def get_kit():
+    return apply_kit.load_kit().model_dump()
+
+
+@router.put("/apply/kit")
+def put_kit(body: KitIn):
+    apply_kit.save_kit(body.data)
+    return {"ready": apply_kit.is_ready(), "missing": apply_kit.missing_fields()}
+
+
+@router.get("/apply/queue", response_model=list[JobListItem])
+def apply_queue():
+    profile = load_profile()
+    return [_list_item(j, profile) for j in repo.list_jobs(status="AUTO_QUEUED", limit=999)]
+
+
+@router.post("/jobs/{job_id}/queue", response_model=JobDetail)
+def queue_job(job_id: str):
+    job = repo.set_status(job_id, "AUTO_QUEUED")
+    if job is None:
+        raise HTTPException(404, "job not found")
+    return _detail(job, load_profile())
+
+
+@router.get("/apply/status")
+def apply_status():
+    return {
+        "queued": len(repo.list_jobs(status="AUTO_QUEUED", limit=999)),
+        "applied": repo.count_applications(),
+        "kit_ready": apply_kit.is_ready(),
+        "kit_missing": apply_kit.missing_fields(),
+    }
 
 
 @router.get("/streak")

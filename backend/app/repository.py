@@ -136,7 +136,7 @@ class SQLiteJobRepository:
             # (unmarking Applied -> VIEWED brings the job back into the feed)
             if not include_dismissed:
                 stmt = stmt.where(Job.status.notin_(
-                    ["DISMISSED", "IGNORED", "APPLIED", "PHONE_SCREEN", "INTERVIEW",
+                    ["DISMISSED", "IGNORED", "AUTO_QUEUED", "APPLIED", "PHONE_SCREEN", "INTERVIEW",
                      "FINAL_INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN"]))
             stmt = stmt.where(Job.freshness != "EXPIRED")   # hide closed postings from the main feed
         if min_score is not None:
