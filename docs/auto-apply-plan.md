@@ -154,9 +154,11 @@ AshbyAdapter, GenericAdapter) so adding a new ATS = one file, mirroring how job 
 
 ## 7. Phased build plan
 
-- **Phase 0 — Kit & wiring.** I ask you for the Application Kit (§4); store it locally (gitignored).
-  Add the Auto-Apply Queue (a `Queue for auto-apply` action on cards + a queue view) sourced from
-  Jobber's pool. New statuses/tables. No browser yet.
+- **Phase 0 — Kit & wiring. ✅ SHIPPED (commit e990be0).** Application Kit (`app/apply_kit.py`,
+  local gitignored `data/apply_kit.local.json`, EEO defaults to decline) with GET/PUT `/apply/kit` +
+  readiness check. `AUTO_QUEUED` status (hidden from feed) + a ⚡ queue button on cards + `/apply/queue`
+  + `/apply/status`. New **Auto-Apply nav view**: Kit editor form + readiness banner + queue list +
+  nav badge. No browser/submitting yet. → **User fills the Kit in the app before Phase A.**
 - **Phase A — Dry-run harness.** Playwright opens each queued job's `apply_url`, snapshots the form,
   maps fields, generates answers, and **produces a filled-form preview + screenshot WITHOUT
   submitting.** Proves reading/mapping/answering end-to-end, safely. Verify on ~10 jobs.
