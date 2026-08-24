@@ -175,15 +175,20 @@ as the rest of Jobber.
 
 ---
 
-## 8. Open decisions (need your call before Phase 0)
+## 8. Decisions — LOCKED (confirmed 2026-08-20)
 
-1. **Submission autonomy:** confirm the progression **dry-run → review-each → unattended-per-adapter**
-   (my recommendation), or do you want fully unattended sooner (higher risk of a bad submit)?
-2. **Cover letters:** none / generate-tailored-per-job (Grok) / base template you provide?
-3. **Agent tiering:** OK with **local+Grok default, Claude only on escalation** (cost), Hermes as
-   router? Or force a specific agent?
-4. **Scope of sources:** auto-apply only to **Greenhouse/Lever/Ashby/USAJOBS** (guest-apply, no
-   login), and hand off Workday/login-walled/CAPTCHA to manual? (Strongly recommended.)
-5. **Risk posture:** comfortable that automated submits to employer ATS forms may violate some ATS
-   ToS, and that mass-applying carries the "do-not-hire flag" risk from the article — so we stay
-   targeted (top-scored only) and tailored?
+1. **Submission autonomy:** ✅ **dry-run → review-each → unattended-per-adapter.** Never unattended
+   until an ATS adapter is proven; every early submit is human-approved.
+2. **Cover letters / long answers:** ✅ **generate tailored per job (Grok), grounded in résumé + that
+   job, varied each time**; escalate to Claude only on low confidence. (Directly counters the
+   "identical AI output" failure mode.)
+3. **Agent tiering:** ✅ **local (Ollama) + Grok default, Claude only on escalation, Hermes as router.**
+4. **Source scope:** ✅ **guest-apply ATS only — Greenhouse / Lever / Ashby / USAJOBS.** Workday /
+   login-walled / CAPTCHA jobs are handed off to the user as "manual" (never auto-account-created or
+   CAPTCHA-solved).
+5. **Risk posture:** ✅ accepted — stay **targeted (top-scored only) + tailored**, throttled, with
+   review gates; automated ATS submits may bend some ToS, mitigated by low volume + human approval
+   early.
+
+→ **Next step: Phase 0.** When you say "build," I'll ask you for the Application Kit (§4) and stand up
+the queue.
