@@ -42,6 +42,32 @@ def confirmed(page) -> bool:
     return any(h in body for h in _CONFIRM)
 
 
+def _fill_all(page, kit, jctx) -> None:
+    fields = formreader.read_form(page)
+    if not fields:
+        return
+    plan = mapping.map_fields(kit, fields)
+    plan, _ = answers.resolve(kit, plan, jctx)
+    filler.fill(page, plan)
+
+
+def _heal(page, kit, jctx, flagged: list[str]) -> int:
+    """Re-fill only the fields the form's validation flagged (targeted, so we never clobber a value
+    the user edited on some OTHER field). Returns how many we could fill."""
+    fields = formreader.read_form(page)
+    if not fields:
+        return 0
+    plan = mapping.map_fields(kit, fields)
+    plan, _ = answers.resolve(kit, plan, jctx)
+    fl = [f.lower() for f in flagged]
+    targeted = [e for e in plan["filled"]
+                if any(x in (e.get("label") or "").lower() or (e.get("label") or "").lower() in x for x in fl)]
+    if not targeted:
+        return 0
+    res = filler.fill(page, {"filled": targeted})
+    return len(res.get("entered", []))
+
+
 def start(job: dict, on_confirm) -> None:
     """Launch the assisted session in a background thread. on_confirm(job_id) is called once, only
     when the employer's confirmation page is detected (i.e. the user actually submitted)."""
@@ -63,15 +89,15 @@ def _run(job: dict, on_confirm) -> None:
             page = ctx.new_page()
             page.goto(job["apply_url"], wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(2500)
-            fields = formreader.read_form(page)
-            if fields:
-                kit = load_kit()
-                plan = mapping.map_fields(kit, fields)
-                jctx = {"title": job.get("title"), "company": job.get("company_name")}
-                plan, _ = answers.resolve(kit, plan, jctx)
-                filler.fill(page, plan)
-            _set(job_id, "review", "Filled — review every field, then click Submit yourself.")
-            # watch for the user's submission (never submit for them). ~12 min, or until they close it.
+            kit = load_kit()
+            jctx = {"title": job.get("title"), "company": job.get("company_name")}
+            if formreader.read_form(page):
+                _fill_all(page, kit, jctx)
+            _set(job_id, "review", "Filled — review every field, then click Submit. If the form flags "
+                                   "anything, Jobber auto-fills what it can — just Submit again.")
+            # watch for submission (never submit for them). If validation catches it, self-heal the
+            # flagged fields, then wait for the re-submit. ~12 min, or until they close it.
+            heals, seen = 0, set()
             for _ in range(360):
                 page.wait_for_timeout(2000)
                 try:
@@ -83,6 +109,16 @@ def _run(job: dict, on_confirm) -> None:
                             pass
                         page.wait_for_timeout(4000)
                         break
+                    if heals < 4:                           # validation-error field discovery + self-heal
+                        flagged = filler.flagged_fields(page)
+                        sig = tuple(sorted(flagged))
+                        if flagged and sig not in seen:
+                            seen.add(sig)
+                            n = _heal(page, kit, jctx, flagged)
+                            heals += 1
+                            if n:
+                                _set(job_id, "review", f"The form flagged {len(flagged)} field(s); "
+                                     f"Jobber auto-filled {n} — click Submit again.")
                     _ = page.title()                        # raises if the user closed the window
                 except Exception:
                     _set(job_id, "closed", "Browser closed before a confirmation was seen.")

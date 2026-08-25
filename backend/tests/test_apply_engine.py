@@ -63,6 +63,23 @@ def test_rerender_wipe_recovered_by_reconcile():
     assert r["status"] == "ready_to_submit", r["blockers"]
 
 
+def test_validation_error_discovery_flags_hidden_field():
+    # After a validation catch, the form flags a required custom control our reader can't see; the
+    # discovery reads the aria-invalid/error state and surfaces that field.
+    from app.apply import filler
+    from playwright.sync_api import sync_playwright
+    url = (MOCKS / "validation.html").as_uri()
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=True)
+        pg = b.new_page(); pg.goto(url, wait_until="domcontentloaded"); pg.wait_for_timeout(200)
+        try:
+            assert filler.flagged_fields(pg) == []
+            pg.click("#sub"); pg.wait_for_timeout(300)          # user hits Submit → validation catch
+            assert any("clearance" in f.lower() for f in filler.flagged_fields(pg))
+        finally:
+            b.close()
+
+
 def test_form_behind_ats_iframe_is_reached():
     # Greenhouse embeds the form in a cross-origin iframe (#grnhse_iframe); the engine must load the
     # iframe's src as a top-level page and read the form inside.

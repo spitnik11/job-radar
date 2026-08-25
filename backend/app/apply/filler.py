@@ -244,9 +244,50 @@ _MISSING_JS = r"""
 """
 
 
-def missing_required(page, fields: list[dict] | None = None) -> list[str]:
-    """Labels of required fields still empty on the live form (fresh scan; ignores `fields`)."""
+# Validation-error field discovery: read the form's OWN error state (aria-invalid + visible error
+# messages) → the labels of fields it is flagging. Authoritative for fields our reader can't see
+# (custom controls), and the point of "the form tells us what it wants".
+_FLAGGED_JS = r"""
+() => {
+  const clean = s => (s||'').replace(/\s+/g,' ').replace(/\*$/,'').trim();
+  const esc = s => (window.CSS && CSS.escape) ? CSS.escape(s) : (s||'').replace(/"/g,'\\"');
+  const labelOf = el => {
+    if (el.id){ const l=document.querySelector(`label[for="${esc(el.id)}"]`); if(l&&l.innerText.trim()) return clean(l.innerText); }
+    const fld = el.closest('[data-field-path],fieldset,[class*="field" i],div');
+    const h = fld && fld.querySelector('label,legend,[class*="heading" i]');
+    return h ? clean(h.innerText) : clean(el.getAttribute('aria-label')||el.name||'');
+  };
+  const out = new Set();
+  for (const el of document.querySelectorAll('[aria-invalid="true"]')) { const l=labelOf(el); if(l) out.add(l); }
+  for (const err of document.querySelectorAll('[class*="error" i]:not(:empty),[role="alert"],[aria-live="assertive"],[aria-live="polite"]')) {
+    const t = (err.innerText||'').trim();
+    if (!t || t.length>200 || !/required|please|must|invalid|missing|select|enter|provide|cannot be/i.test(t)) continue;
+    const fld = err.closest('[data-field-path],fieldset,[class*="field" i]');
+    const h = fld && fld.querySelector('label,legend,[class*="heading" i]');
+    if (h && h.innerText.trim()) out.add(clean(h.innerText));
+  }
+  return [...out];
+}
+"""
+
+
+def flagged_fields(page) -> list[str]:
+    """Labels of fields the form's own validation is flagging (aria-invalid / error messages)."""
     try:
-        return page.evaluate(_MISSING_JS) or []
+        return page.evaluate(_FLAGGED_JS) or []
     except Exception:
         return []
+
+
+def missing_required(page, fields: list[dict] | None = None) -> list[str]:
+    """Labels of required fields still empty on the live form (fresh scan) MERGED with fields the
+    form's own validation is flagging (`fields` arg ignored)."""
+    try:
+        miss = page.evaluate(_MISSING_JS) or []
+    except Exception:
+        miss = []
+    seen = {m.lower() for m in miss}
+    for f in flagged_fields(page):
+        if f.lower() not in seen:
+            miss.append(f); seen.add(f.lower())
+    return miss

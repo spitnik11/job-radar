@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>Mock — validation catch</title>
+<h1>Apply</h1>
+<form id="f" onsubmit="return false">
+  <label>First Name *<input id="fn" required></label>
+  <fieldset class="_fieldEntry" data-field-path="clearance">
+    <label class="_heading _required _label">Do you hold a security clearance? *</label>
+    <div id="clearance-widget" role="group"><span>choose…</span></div>
+    <span class="error" id="clerr"></span>
+  </fieldset>
+  <button type="button" id="sub">Submit Application</button>
+</form>
+<script>
+  // real React forms preventDefault + show errors in place; mock that with a plain button
+  document.getElementById('sub').addEventListener('click', function(){
+    const w=document.getElementById('clearance-widget');
+    w.setAttribute('aria-invalid','true');
+    document.getElementById('clerr').textContent='This question is required.';
+  });
+</script>

@@ -89,22 +89,36 @@ def _generate(prompt: str, num_predict: int = 220) -> str | None:
         return None
 
 
+def _qtype(question: str) -> str:
+    """number | yesno | prose. Type-aware so a small model gets ONE clear instruction — mixing a
+    'reply with a number' rule into an essay prompt made llama3.2:3b occasionally answer an essay
+    with a bare number (the 'Additional Information → 10' bug)."""
+    q = (question or "").lower()
+    if re.search(r"\bhow many\b|\bnumber of\b|years?\s+(of\s+)?experience|how many years", q):
+        return "number"
+    prose_words = ("describe", "explain", "why", "tell us", "share", "elaborate", "additional",
+                   "motivation", "cover letter", "anything else", "in your own words")
+    if not any(w in q for w in prose_words) and len(q) < 120 \
+            and re.match(r"\s*(do|does|are|is|have|has|will|would|can|could|did|were|was)\b", q):
+        return "yesno"
+    return "prose"
+
+
 def _llm_answer(kit: ApplicationKit, question: str, job: dict | None) -> str | None:
     resume = _resume_text(kit)
     if not resume:
         return None
     j = job or {}
+    role = f"Role: {j.get('title','')} at {j.get('company','')}."
+    fmt = {
+        "number": "Reply with ONLY a number (e.g. 5) — no words.",
+        "yesno": "Reply with exactly one word: Yes or No.",
+        "prose": "Write a natural first-person response of at most 350 characters. Do not add labels.",
+    }[_qtype(question)]
     out = _generate(
-        f"You are filling a job application for {kit.full_name}. "
-        f"Role: {j.get('title','')} at {j.get('company','')}.\n"
-        f"Answer the single question below as the applicant, in the first person, using ONLY the "
-        f"résumé. Do not invent facts.\n"
-        f"Formatting rules:\n"
-        f"- Number / count / years-of-experience question: reply with just the number (e.g. 5).\n"
-        f"- Yes/no question: reply with exactly Yes or No.\n"
-        f"- Short-answer question: one sentence.\n"
-        f"- Otherwise: a natural response of at most 350 characters.\n"
-        f"- Never repeat the question; never add labels or commentary.\n"
+        f"You are filling a job application for {kit.full_name}. {role}\n"
+        f"Answer the single question below as the applicant, grounded ONLY in the résumé — do not "
+        f"invent facts. {fmt} Never repeat the question or add commentary. "
         f"If the résumé does not support an answer, reply with exactly: UNKNOWN\n\n"
         f"Question: {question}\n\nRésumé:\n{resume}\n\nAnswer:")
     out = (out or "").strip()
