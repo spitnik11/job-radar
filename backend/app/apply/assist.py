@@ -55,8 +55,11 @@ def _run(job: dict, on_confirm) -> None:
     from playwright.sync_api import sync_playwright
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False)     # VISIBLE — the user drives it
-            ctx = browser.new_context(viewport={"width": 1280, "height": 1600})
+            # VISIBLE, real window the user drives. no_viewport lets the page size to the actual
+            # window so it scrolls normally — a fixed viewport taller than the screen leaves the
+            # Submit button off-screen and unreachable.
+            browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+            ctx = browser.new_context(no_viewport=True)
             page = ctx.new_page()
             page.goto(job["apply_url"], wait_until="domcontentloaded", timeout=45000)
             page.wait_for_timeout(2500)
