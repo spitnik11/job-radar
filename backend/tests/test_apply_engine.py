@@ -55,3 +55,23 @@ def test_disabled_submit_flagged():
     r = _prep("disabled.html")
     assert r["status"] == "blocked"
     assert any("disabled" in b.lower() for b in r["blockers"])
+
+
+def test_rerender_wipe_recovered_by_reconcile():
+    # attaching the résumé wipes an already-filled required field; the reconcile pass must re-fill it.
+    r = _prep("rerender.html")
+    assert r["status"] == "ready_to_submit", r["blockers"]
+
+
+def test_combobox_selects_a_suggestion_not_raw_text():
+    from app.apply import filler
+    from playwright.sync_api import sync_playwright
+    url = (MOCKS / "autocomplete.html").as_uri()
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=True)
+        pg = b.new_page(); pg.goto(url, wait_until="domcontentloaded")
+        try:
+            filler._fill_text(pg, "#loc", "Brandon, FL")
+            assert pg.eval_on_selector("#loc", "e=>e.value") == "Brandon, FL, USA"
+        finally:
+            b.close()

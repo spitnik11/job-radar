@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>Mock — Autocomplete location</title>
+<h1>Apply</h1>
+<label>Current location *<input id="loc" role="combobox" aria-autocomplete="list" required autocomplete="off"></label>
+<ul id="sug" role="listbox" style="list-style:none;padding:0;display:none;border:1px solid #ccc"></ul>
+<script>
+  const inp=document.getElementById('loc'), ul=document.getElementById('sug');
+  const CITIES=['Brandon, FL, USA','Tampa, FL, USA','Boston, MA, USA','Orlando, FL, USA'];
+  inp.addEventListener('input',()=>{ const q=inp.value.toLowerCase().trim();
+    const m=q?CITIES.filter(c=>c.toLowerCase().includes(q)):[];
+    ul.innerHTML=m.map(c=>`<li role="option" style="padding:4px;cursor:pointer">${c}</li>`).join('');
+    ul.style.display=m.length?'block':'none'; });
+  ul.addEventListener('click',e=>{ if(e.target.matches('[role=option]')){ inp.value=e.target.textContent; ul.style.display='none'; }});
+</script>

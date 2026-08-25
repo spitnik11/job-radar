@@ -42,9 +42,57 @@ def fill(page, plan: dict) -> dict:
     return {"entered": entered, "failed": failed}
 
 
+def _is_combobox(page, sel) -> bool:
+    try:
+        return bool(page.eval_on_selector(sel,
+            "e=>e.getAttribute('role')==='combobox'||!!e.getAttribute('aria-autocomplete')"
+            "||e.getAttribute('aria-haspopup')==='listbox'||!!e.getAttribute('aria-controls')||!!e.getAttribute('list')"))
+    except Exception:
+        return False
+
+
+def _fill_combobox(page, sel, value) -> bool:
+    """Typeahead/autocomplete (Lever location, etc.): type a few chars, then click the best matching
+    suggestion so the form stores a real selection — raw text alone is often rejected. True if a
+    suggestion was chosen."""
+    loc = page.locator(sel)
+    try:
+        loc.click(timeout=3000)
+        loc.fill("", timeout=2000)
+        loc.press_sequentially(value[:24], delay=45)
+        page.wait_for_timeout(1200)
+    except Exception:
+        return False
+    opts = page.query_selector_all("[role=option], ul[role=listbox] li, [class*='option']:not(:empty)")
+    vwords = [w for w in value.lower().replace(",", " ").split() if len(w) > 1]
+    best = None
+    for o in opts:
+        try:
+            if not o.is_visible():
+                continue
+            t = (o.inner_text() or "").lower()
+            if any(w in t for w in vwords):
+                best = o; break
+            best = best or o
+        except Exception:
+            continue
+    if best:
+        try:
+            best.click(timeout=2000); return True
+        except Exception:
+            pass
+    try:                                            # some accept Enter to take the first suggestion
+        loc.press("Enter")
+    except Exception:
+        pass
+    return False
+
+
 def _fill_text(page, sel, value):
     """fill(), then verify it stuck; React controlled inputs sometimes revert a .value set, so retry
     by typing keystrokes (which every framework accepts) before giving up."""
+    if _is_combobox(page, sel) and _fill_combobox(page, sel, value):
+        return
     page.fill(sel, value, timeout=5000)
     try:
         if (page.eval_on_selector(sel, "e=>e.value") or "").strip() == value.strip():

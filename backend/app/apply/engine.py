@@ -164,6 +164,10 @@ def _run(job: dict, *, fill: bool, kit=None) -> dict:
             fillres = filler.fill(page, plan)
             page.wait_for_timeout(600)
             missing = filler.missing_required(page, fields)
+            if missing:
+                # a re-render (Ashby-style) can wipe fields we already filled. Re-read fresh, re-map,
+                # and re-fill only the still-missing ones (no LLM re-run), then re-check once.
+                missing = _reconcile(page, kit, missing)
             sub = page.evaluate(_SUBMIT_JS)
             _screenshot(page, shot)
 
@@ -181,6 +185,25 @@ def _run(job: dict, *, fill: bool, kit=None) -> dict:
                     "reason": f"{type(e).__name__}: {str(e)[:180]}", "blockers": ["engine error"]}
         finally:
             browser.close()
+
+
+def _reconcile(page, kit, missing: list[str]) -> list[str]:
+    """Re-fill required fields a re-render wiped after the first pass, then re-check. One pass only:
+    re-read the current form, re-map the kit onto it, and enter only the fields whose label is still
+    in `missing` (deterministic values only — never re-invokes the LLM answer-tier)."""
+    fresh = formreader.read_form(page)
+    if not fresh:
+        return missing
+    plan2 = mapping.map_fields(kit, fresh)
+    miss_lc = [m.lower() for m in missing]
+    refill = [f for f in plan2["filled"]
+              if any(m in (f.get("label") or "").lower() or (f.get("label") or "").lower() in m
+                     for m in miss_lc)]
+    if not refill:
+        return missing
+    filler.fill(page, {"filled": refill})
+    page.wait_for_timeout(500)
+    return filler.missing_required(page, fresh)
 
 
 def _classify(block, fillres, missing, sub, still_open) -> list[str]:

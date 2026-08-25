@@ -1,0 +1,15 @@
+<!doctype html><meta charset="utf-8"><title>Mock Apply — Re-render wipe</title>
+<h1>Apply</h1>
+<form onsubmit="return false">
+  <label>First Name *<input required></label>
+  <label>Email *<input type="email" required></label>
+  <label>Legal Name *<input id="legal" required></label>
+  <label>Résumé *<input id="cv" type="file" required></label>
+  <button type="submit">Submit Application</button>
+</form>
+<script>
+  // Ashby-style: attaching the résumé re-renders and wipes an already-filled field.
+  document.getElementById('cv').addEventListener('change', () => {
+    document.getElementById('legal').value = '';
+  });
+</script>
