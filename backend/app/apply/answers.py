@@ -97,11 +97,18 @@ def _llm_answer(kit: ApplicationKit, question: str, job: dict | None) -> str | N
     out = _generate(
         f"You are filling a job application for {kit.full_name}. "
         f"Role: {j.get('title','')} at {j.get('company','')}.\n"
-        f"Answer this application question in the first person, concise (2-4 sentences), "
-        f"honest, and grounded ONLY in the résumé below. Do not invent facts. "
+        f"Answer the single question below as the applicant, in the first person, using ONLY the "
+        f"résumé. Do not invent facts.\n"
+        f"Formatting rules:\n"
+        f"- Number / count / years-of-experience question: reply with just the number (e.g. 5).\n"
+        f"- Yes/no question: reply with exactly Yes or No.\n"
+        f"- Short-answer question: one sentence.\n"
+        f"- Otherwise: a natural response of at most 350 characters.\n"
+        f"- Never repeat the question; never add labels or commentary.\n"
         f"If the résumé does not support an answer, reply with exactly: UNKNOWN\n\n"
         f"Question: {question}\n\nRésumé:\n{resume}\n\nAnswer:")
-    if not out or "UNKNOWN" in out or len(out) < 8:
+    out = (out or "").strip()
+    if not out or "UNKNOWN" in out.upper():          # allow short valid answers ("Yes"/"No"/a number)
         return None
     return out
 

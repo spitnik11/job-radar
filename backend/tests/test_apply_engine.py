@@ -63,6 +63,14 @@ def test_rerender_wipe_recovered_by_reconcile():
     assert r["status"] == "ready_to_submit", r["blockers"]
 
 
+def test_form_behind_ats_iframe_is_reached():
+    # Greenhouse embeds the form in a cross-origin iframe (#grnhse_iframe); the engine must load the
+    # iframe's src as a top-level page and read the form inside.
+    r = _prep("iframe_host.html")
+    assert r["status"] == "ready_to_submit", r["blockers"]
+    assert r["field_count"] >= 8
+
+
 def test_async_resume_upload_detected_as_attached():
     # Ashby-style: upload clears input.files and shows a filename chip; must NOT read as still-empty.
     r = _prep("ashby_upload.html")

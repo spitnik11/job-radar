@@ -83,10 +83,41 @@ _SUBMIT_JS = r"""
 """
 
 
+def _enter_ats_iframe(page) -> bool:
+    """Some ATS embed the real form in a cross-origin iframe (Greenhouse's #grnhse_iframe on company
+    career pages) that our reader can't see into. Load the iframe's src as a top-level page so the
+    form becomes directly readable/fillable. Returns True if it navigated into one."""
+    try:
+        src = page.evaluate(
+            """() => {
+              const gh = document.getElementById('grnhse_iframe');
+              if (gh && gh.src) return gh.src;
+              for (const f of document.querySelectorAll('iframe')) {
+                const s = (f.src||'').toLowerCase();
+                if (/greenhouse|lever|ashby|job_app|application|jobs\\./.test(s)) return f.src;
+              }
+              return null;
+            }""")
+    except Exception:
+        src = None
+    if not src:
+        return False
+    try:
+        page.goto(src, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(2500)
+        return True
+    except Exception:
+        return False
+
+
 def _reach_form(page):
     fields = formreader.read_form(page)
     if fields:
         return fields
+    if _enter_ats_iframe(page):                       # form was behind an embedded ATS iframe
+        fields = formreader.read_form(page)
+        if fields:
+            return fields
     for sel in ("text=Apply for this job", "text=Apply now", "button:has-text('Apply')",
                 "a:has-text('Apply')", "#apply_button", ".apply-button"):
         try:
