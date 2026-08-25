@@ -16,9 +16,14 @@ _EXTRACT_JS = r"""
   };
   const req = el => {
     if (el.required || el.getAttribute('aria-required') === 'true') return true;
-    const box = el.closest('div,li,fieldset,section');
-    const lab = box && box.querySelector('label,legend');
-    return !!(lab && /\*/.test(lab.textContent)) || /\brequired\b/i.test((box && box.className) || '');
+    const box = el.closest('fieldset,div,li,section');
+    if (!box) return false;
+    const lab = box.querySelector('label,legend');
+    if (lab && /\*/.test(lab.textContent)) return true;
+    // class-based required marker on a label/heading in this field (Ashby uses `_required` on the heading)
+    for (const m of box.querySelectorAll('label,legend,[class*="heading" i]'))
+      if (/required/i.test(m.className || '')) return true;
+    return /\brequired\b/i.test(box.className || '');
   };
   const labelFor = el => {
     if (el.id) { const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
@@ -58,10 +63,31 @@ _EXTRACT_JS = r"""
                label:clean(labelFor(el)), required:req(el), options });
     i++;
   }
-  for (const e of out) if (e.tag === 'radio' && !e.label) {
+  // radio group label + required come from the GROUP container (fieldset/radiogroup), not the nearest
+  // div — which is the single option's wrapper and holds only the option text ("Yes") + no heading.
+  for (const e of out) if (e.tag === 'radio') {
     const first = document.querySelector(`[data-jr="${e.options[0].jr}"]`);
-    const p = first && first.closest('fieldset,div,section');
-    e.label = p ? clean((p.querySelector('legend,label,.label')||{}).innerText) : (e.name || '');
+    let grp = first && first.closest('fieldset,[role="radiogroup"]');
+    if (!grp && first) {                              // no fieldset: climb to the ancestor holding all options
+      const nm = first.name; let p = first.parentElement;
+      while (p && !(nm && p.querySelectorAll(`input[name="${CSS.escape(nm)}"]`).length >= e.options.length))
+        p = p.parentElement;
+      grp = p || first.closest('div,section');
+    }
+    let q = '', required = false;
+    if (grp) {
+      const cand = [...grp.querySelectorAll('label,legend,[class*="heading" i],[class*="question" i]')]
+        .find(l => !l.closest('[class*="option" i]') && (l.innerText || '').trim());
+      if (cand) { q = clean(cand.innerText);
+                  required = /\*/.test(cand.textContent) || /required/i.test(cand.className || ''); }
+      if (!required) {
+        if (grp.getAttribute && grp.getAttribute('aria-required') === 'true') required = true;
+        else for (const m of grp.querySelectorAll('label,legend,[class*="heading" i]'))
+          if (/required/i.test(m.className || '')) { required = true; break; }
+      }
+    }
+    if (q) e.label = q; else if (!e.label) e.label = e.name || '';
+    if (required) e.required = true;
   }
   return out;
 }

@@ -104,7 +104,8 @@ def map_fields(kit: ApplicationKit, fields: list[dict]) -> dict:
             chosen = _match_option(str(val), texts) if val not in (None, "") else None
             if chosen is None:
                 open_q.append({"label": f.get("label") or f.get("name"), "type": "radio", "jr": jr,
-                               "required": req, "options": texts})
+                               "required": req, "options": texts,
+                               "opt_jrs": {o["text"]: o["jr"] for o in opts}})
             else:
                 ojr = next((o["jr"] for o in opts if o["text"] == chosen), None)
                 filled.append({"label": f.get("label"), "value": chosen, "option": chosen,

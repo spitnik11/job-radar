@@ -31,7 +31,7 @@ def fill(page, plan: dict) -> dict:
                 page.set_input_files(sel, e["value"], timeout=8000)
                 page.wait_for_timeout(1000)
             elif t == "radio" or e.get("check") or t == "checkbox":
-                page.check(sel, timeout=5000)
+                _check(page, sel)
             elif e.get("option") is not None or e.get("options"):     # a <select>
                 _select(page, sel, e.get("option") or e.get("value"))
             else:
@@ -106,6 +106,28 @@ def _fill_text(page, sel, value):
     except Exception:
         pass
     loc.press_sequentially(value, delay=12, timeout=6000)
+
+
+def _check(page, sel):
+    """Select a radio/checkbox robustly. Custom-styled controls hide the real input (opacity:0) under
+    a label (Ashby, many ATS); a programmatic check silently no-ops and doesn't fire the framework's
+    onChange, so fall back to a real click on the controlling label/option wrapper."""
+    try:
+        page.check(sel, timeout=2500)
+        if page.eval_on_selector(sel, "e=>e.checked"):
+            return
+    except Exception:
+        pass
+    h = page.query_selector(sel)
+    if not h:
+        return
+    target = h.evaluate_handle(
+        "e=>{const id=e.id; return (id && document.querySelector(`label[for='${CSS.escape(id)}']`))"
+        " || e.closest('label') || e.closest('[class*=option i]') || e;}").as_element()
+    try:
+        (target or h).click(timeout=3000)
+    except Exception:
+        pass
 
 
 def _select(page, sel, value):

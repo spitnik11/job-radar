@@ -26,6 +26,25 @@ def test_sensitive_still_honors_explicit_library_answer():
     assert answers.answer(kit, "Have you ever been convicted of a felony?") == "No"
 
 
+def test_best_option_matching():
+    opts = ["Eastern Time (US)", "Western Europe", "Outside this range"]
+    assert answers._best_option("Eastern Time (US)", opts) == "Eastern Time (US)"
+    assert answers._best_option("I am based in Eastern Time", opts) == "Eastern Time (US)"
+    assert answers._best_option("Antarctica", opts) is None
+
+
+def test_answer_choice_library_wins_and_maps_to_option():
+    kit = ApplicationKit(answer_library={"time zone": "Eastern"})
+    opts = ["I'm in the Eastern Time zone", "I'm in Europe", "Other"]
+    assert answers.answer_choice(kit, "Which time zone are you in?", opts) == "I'm in the Eastern Time zone"
+
+
+def test_answer_choice_never_picks_for_sensitive():
+    kit = ApplicationKit()
+    opts = ["Yes", "No"]
+    assert answers.answer_choice(kit, "Are you legally authorized to work in the US?", opts) is None
+
+
 def test_resolve_leaves_required_unanswered_as_open():
     kit = ApplicationKit()
     plan = {"filled": [], "open": [

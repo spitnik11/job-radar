@@ -63,6 +63,17 @@ def test_rerender_wipe_recovered_by_reconcile():
     assert r["status"] == "ready_to_submit", r["blockers"]
 
 
+def test_ashby_custom_radios_labelled_required_and_filled():
+    # Ashby-style: fieldset + `_required` heading + opacity:0 radios under labels. The group label must
+    # be the QUESTION (not "Yes"), required must be detected, and the auth radios must fill to Yes.
+    r = _prep("ashby_radio.html")
+    assert r["status"] == "ready_to_submit", r["blockers"]
+    radios = [f for f in r["filled"] if f["type"] == "radio"]
+    assert len(radios) == 2
+    assert all(f["option"] == "Yes" for f in radios)
+    assert all("authoriz" in f["label"].lower() or "right to work" in f["label"].lower() for f in radios)
+
+
 def test_combobox_selects_a_suggestion_not_raw_text():
     from app.apply import filler
     from playwright.sync_api import sync_playwright

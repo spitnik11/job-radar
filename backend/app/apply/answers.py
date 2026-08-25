@@ -70,30 +70,81 @@ def _chat_model() -> str | None:
     return names[0] if names else None
 
 
-def _llm_answer(kit: ApplicationKit, question: str, job: dict | None) -> str | None:
+def _generate(prompt: str, num_predict: int = 220) -> str | None:
     model = _chat_model()
+    if not model:
+        return None
+    try:
+        r = httpx.post(f"{_OLLAMA}/api/generate",
+                       json={"model": model, "prompt": prompt, "stream": False,
+                             "options": {"temperature": 0.3, "num_predict": num_predict}},
+                       timeout=90)                   # first call cold-loads the model into VRAM (~30-60s)
+        return (r.json().get("response") or "").strip()
+    except Exception:
+        return None
+
+
+def _llm_answer(kit: ApplicationKit, question: str, job: dict | None) -> str | None:
     resume = _resume_text(kit)
-    if not model or not resume:
+    if not resume:
         return None
     j = job or {}
-    prompt = (
+    out = _generate(
         f"You are filling a job application for {kit.full_name}. "
         f"Role: {j.get('title','')} at {j.get('company','')}.\n"
         f"Answer this application question in the first person, concise (2-4 sentences), "
         f"honest, and grounded ONLY in the résumé below. Do not invent facts. "
         f"If the résumé does not support an answer, reply with exactly: UNKNOWN\n\n"
         f"Question: {question}\n\nRésumé:\n{resume}\n\nAnswer:")
-    try:
-        r = httpx.post(f"{_OLLAMA}/api/generate",
-                       json={"model": model, "prompt": prompt, "stream": False,
-                             "options": {"temperature": 0.4, "num_predict": 220}},
-                       timeout=90)                   # first call cold-loads the model into VRAM (~30-60s)
-        out = (r.json().get("response") or "").strip()
-    except Exception:
-        return None
     if not out or "UNKNOWN" in out or len(out) < 8:
         return None
     return out
+
+
+def _words(s: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]+", (s or "").lower()) if len(w) > 3}
+
+
+def _best_option(text: str, options: list[str]) -> str | None:
+    """Map free text to the closest option: exact → substring → word-overlap → fuzzy. None if nothing
+    is a reasonable fit (better to leave a choice open than mis-select)."""
+    t = (text or "").strip().lower()
+    if not t or not options:
+        return None
+    for o in options:
+        if t == o.lower():
+            return o
+    for o in options:
+        ol = o.lower()
+        if ol in t or (len(ol) > 8 and t in ol):
+            return o
+    tw = _words(t)
+    best, score = None, 0.0
+    for o in options:                                # fraction of the option's key words present in the text
+        ow = _words(o)
+        ov = len(tw & ow) / len(ow) if ow else 0
+        if ov > score:
+            best, score = o, ov
+    if score >= 0.6:
+        return best
+    best, score = None, 0.0
+    for o in options:
+        rr = SequenceMatcher(None, t, o.lower()).ratio()
+        if rr > score:
+            best, score = o, rr
+    return best if score >= 0.6 else None
+
+
+def answer_choice(kit: ApplicationKit, question: str, options: list[str], job: dict | None = None) -> str | None:
+    """Pick an option for a custom radio/select question — from the user's answer_library ONLY.
+    A discrete choice on a real application is consequential (a wrong timezone/eligibility pick can
+    auto-reject you), and a small local model isn't reliable enough to make it, so we do NOT let the
+    LLM choose here: an unmatched choice stays open for the user's quick review. They can add a rule
+    to the library once and it applies automatically after that."""
+    lib = _from_library(kit, question)
+    if lib is not None:
+        return _best_option(lib, options)
+    return None
 
 
 def answer(kit: ApplicationKit, question: str, job: dict | None = None) -> str | None:
@@ -110,12 +161,25 @@ def resolve(kit: ApplicationKit, plan: dict, job: dict | None = None) -> tuple[d
     couldn't match and anything unanswered stay open (a required one remains a real blocker)."""
     still_open = []
     for q in plan.get("open", []):
-        if q.get("type") in _TEXT and not q.get("options"):
-            a = answer(kit, q.get("label") or "", job)
+        opts = q.get("options") or []
+        label = q.get("label") or ""
+        if not opts and q.get("type") in _TEXT:              # free-text question
+            a = answer(kit, label, job)
             if a is not None:
                 plan["filled"].append({"label": q.get("label"), "value": a, "option": None,
                                        "type": q.get("type") or "textarea", "jr": q.get("jr"),
                                        "required": q.get("required", False), "answered_by": "ai"})
                 continue
+        elif opts and q.get("type") in ("radio", "select-one", "select"):   # custom choice question
+            chosen = answer_choice(kit, label, opts, job)
+            if chosen is not None:
+                jr = q.get("jr")
+                if q.get("type") == "radio":
+                    jr = (q.get("opt_jrs") or {}).get(chosen)   # the specific option's handle
+                if jr is not None:
+                    plan["filled"].append({"label": q.get("label"), "value": chosen, "option": chosen,
+                                           "type": q.get("type"), "jr": jr,
+                                           "required": q.get("required", False), "answered_by": "ai"})
+                    continue
         still_open.append(q)
     return plan, still_open
