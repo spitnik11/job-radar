@@ -879,8 +879,10 @@ function openQ(qs){
 function renderPrep(r){
   const shot=r.shot?`<a class="dryshot" href="/api/v1/apply/shot/${encodeURIComponent(r.job_id)}" target="_blank">View filled-form screenshot ↗</a>`:'';
   if(r.status==='ready_to_submit')
-    return `<div class="prepok">✓ Submission-ready — all required fields filled${r.submit_text?` · button: “${esc(r.submit_text)}”`:''}. Nothing was submitted; review the screenshot, then apply on the real page.</div>
-      <div class="drymeta">${r.entered||0} fields entered · ${r.field_count||0} on the form.</div>${openQ(r.open)}<div class="dryfoot">${shot}</div>`;
+    return `<div class="prepok">✓ Submission-ready — all required fields filled${r.submit_text?` · button: “${esc(r.submit_text)}”`:''}. Nothing submitted yet.</div>
+      <div class="drymeta">${r.entered||0} fields entered · ${r.field_count||0} on the form.</div>${openQ(r.open)}
+      <div style="margin-top:10px"><button class="btn asbtn primary" data-assist="${esc(r.job_id)}">Open &amp; submit ↗</button></div>
+      <div class="asstat" style="display:none"></div><div class="dryfoot">${shot}</div>`;
   if(r.status==='error') return `<div class="dryblock">Couldn’t process this form: ${esc(r.reason||'')}</div><div class="dryfoot">${shot}</div>`;
   const bl=(r.blockers||[]).map(b=>`<li>${esc(b)}</li>`).join('');
   return `<div class="prepblock"><b>${(r.blockers||[]).length} thing(s) would stop this application:</b><ul>${bl}</ul></div>
@@ -973,7 +975,7 @@ async function renderApplyView(){
     if(!st.kit_ready){ prev.style.display='block'; prev.innerHTML=`<div class="dryblock">Fill your Application Kit first — still need: ${(st.kit_missing||[]).join(', ')}</div>`; return; }
     prev.style.display='block'; prev.innerHTML=`<div class="drymeta">${working}</div>`;
     btn.disabled=true; const old=btn.textContent; btn.textContent='Running…';
-    try{ const r=await api(path,{method:'POST'}); prev.innerHTML=render(r); prev.dataset.done=btn.dataset.mode; }
+    try{ const r=await api(path,{method:'POST'}); prev.innerHTML=render(r); prev.dataset.done=btn.dataset.mode; wireAssist(prev); }
     catch(e){ prev.innerHTML='<div class="dryblock">Run failed. Is the job page reachable?</div>'; }
     btn.disabled=false; btn.textContent=old;
   };
@@ -1033,23 +1035,29 @@ async function renderApplyView(){
       <div style="flex:1"><div class="rtitle">${esc(r.title||'')}</div><div class="rco">${esc(r.company||'')} · ${r.filled} filled${r.open?` · ${r.open} open`:''} ${shot}</div></div>${act}</div>
       ${bl}${openQ(r.questions)}<div class="asstat" style="display:none"></div></div>`;
   }
-  function wireAssist(){
-    document.querySelectorAll('#prepresults .asbtn').forEach(btn=>btn.onclick=async ()=>{
-      const row=btn.closest('.pcardrow'); const stat=row.querySelector('.asstat');
-      stat.style.display='block'; stat.innerHTML='<span class="hint">Opening a browser window with your details pre-filled — review every field, then click the form’s Submit. Jobber will detect the confirmation.</span>';
-      btn.disabled=true;
-      try{ await api('/apply/assist/'+encodeURIComponent(btn.dataset.assist),{method:'POST'}); }catch(e){ stat.innerHTML='<span class="hint">Could not open the browser session.</span>'; btn.disabled=false; return; }
-      pollAssist(btn.dataset.assist,row,btn);
+  function wireAssist(container){
+    (container||document).querySelectorAll('.asbtn').forEach(btn=>{
+      if(btn.dataset.wired) return; btn.dataset.wired='1';
+      btn.onclick=async ()=>{
+        let stat=btn.closest('.pcardrow, .dryprev, .qwrap')?.querySelector('.asstat');
+        if(!stat){ stat=document.createElement('div'); stat.className='asstat'; btn.after(stat); }
+        stat.style.display='block';
+        stat.innerHTML='<span class="hint">Opening a browser window with your details pre-filled — review every field, then click the form’s <b>Submit</b>. Jobber watches for the confirmation and marks it applied.</span>';
+        btn.disabled=true; btn.textContent='Browser open — submit there';
+        try{ await api('/apply/assist/'+encodeURIComponent(btn.dataset.assist),{method:'POST'}); }
+        catch(e){ stat.innerHTML='<span class="hint">Could not open the browser session.</span>'; btn.disabled=false; return; }
+        pollAssist(btn.dataset.assist,stat,btn);
+      };
     });
   }
-  async function pollAssist(id,row,btn){
+  async function pollAssist(id,stat,btn){
     let all; try{ all=await api('/apply/assist/status'); }catch(e){ return; }
-    const s=all[id]||{status:'none'}; const stat=row.querySelector('.asstat');
-    const msg={opening:'Opening browser…',review:'Filled — review the form and click Submit.',submitted:'✓ Submitted — marked as applied.',closed:'Browser closed before submit.',error:'Session error.'}[s.status]||s.status;
+    const s=all[id]||{status:'none'};
+    const msg={opening:'Opening browser…',review:'✏️ Filled — review the form in the browser and click Submit.',submitted:'✓ Submitted — marked as applied.',closed:'Browser closed before submit.',error:'Session error.'}[s.status]||s.status;
     stat.innerHTML=`<span class="hint">${esc(msg)}${s.reason&&s.status!=='review'?' — '+esc(s.reason):''}</span>`;
-    if(s.status==='submitted'){ row.querySelector('.ppill').outerHTML='<span class="ppill ok">Applied</span>'; btn.remove(); refreshBadges(); return; }
-    if(['closed','error','none'].includes(s.status)){ btn.disabled=false; return; }
-    setTimeout(()=>pollAssist(id,row,btn),2500);
+    if(s.status==='submitted'){ const pill=btn.closest('.pcardrow')?.querySelector('.ppill'); if(pill) pill.outerHTML='<span class="ppill ok">Applied</span>'; btn.remove(); refreshBadges(); return; }
+    if(['closed','error','none'].includes(s.status)){ btn.disabled=false; btn.textContent='Open & submit'; return; }
+    setTimeout(()=>pollAssist(id,stat,btn),2500);
   }
 }
 

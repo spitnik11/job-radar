@@ -63,6 +63,24 @@ def test_rerender_wipe_recovered_by_reconcile():
     assert r["status"] == "ready_to_submit", r["blockers"]
 
 
+def test_async_resume_upload_detected_as_attached():
+    # Ashby-style: upload clears input.files and shows a filename chip; must NOT read as still-empty.
+    r = _prep("ashby_upload.html")
+    assert r["status"] == "ready_to_submit", r["blockers"]
+
+
+def test_custom_radio_fills_from_answer_library():
+    from app.apply import engine as eng
+    from app.apply_kit import ApplicationKit
+    url = (MOCKS / "custom_radio.html").as_uri()
+    kit = ApplicationKit(full_name="T", email="t@e.com", phone="5",
+                         resume_path=str(MOCKS / "resume.txt"),
+                         answer_library={"Which team are you applying to?": "Growth"})
+    r = eng.prepare({"id": "m:cr", "apply_url": url, "title": "x", "company_name": "y"}, kit=kit)
+    assert r["status"] == "ready_to_submit", r["blockers"]
+    assert any(f["type"] == "radio" and f["option"] == "Growth" for f in r["filled"])
+
+
 def test_ashby_custom_radios_labelled_required_and_filled():
     # Ashby-style: fieldset + `_required` heading + opacity:0 radios under labels. The group label must
     # be the QUESTION (not "Yes"), required must be detected, and the auth radios must fill to Yes.

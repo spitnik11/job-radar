@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Mock — Ashby async résumé upload</title>
+<h1>Apply</h1>
+<form onsubmit="return false">
+  <fieldset class="_fieldEntry" data-field-path="_systemfield_resume">
+    <label class="_heading _required _label">Resume</label>
+    <input type="file" id="cv" style="width:1px;height:1px">
+    <div id="chip"></div>
+  </fieldset>
+  <button type="submit">Submit Application</button>
+</form>
+<script>
+  // Ashby-style: on select, upload async, then CLEAR input.files and show a filename chip.
+  document.getElementById('cv').addEventListener('change', function(){
+    const name = this.files[0] ? this.files[0].name : '';
+    const inp = this;
+    setTimeout(function(){
+      document.getElementById('chip').innerHTML = '<span class="filename">'+name+'</span> <button class="remove" type="button">Remove</button>';
+      inp.value = '';                                  // files cleared after processing
+    }, 700);
+  });
+</script>

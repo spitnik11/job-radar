@@ -44,15 +44,20 @@ def _resume_text(kit: ApplicationKit) -> str:
     return _resume_cache[key]
 
 
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "")).strip().rstrip("*").strip().lower()
+
+
 def _from_library(kit: ApplicationKit, question: str) -> str | None:
     lib = kit.answer_library or {}
     if not lib or not question:
         return None
-    q = question.lower()
+    q = _norm(question)                              # normalize whitespace/asterisk on both sides
     for pat, ans in lib.items():
-        if pat.lower() in q or q in pat.lower():
+        pn = _norm(pat)
+        if pn and (pn in q or q in pn):
             return ans
-    pat, score = max(((p, SequenceMatcher(None, q, p.lower()).ratio()) for p in lib),
+    pat, score = max(((p, SequenceMatcher(None, q, _norm(p)).ratio()) for p in lib),
                      key=lambda t: t[1], default=(None, 0))
     return lib[pat] if pat and score >= 0.6 else None
 

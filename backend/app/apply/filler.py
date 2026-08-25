@@ -26,10 +26,10 @@ def fill(page, plan: dict) -> dict:
         sel = _sel(jr)
         try:
             if t == "file":
-                # async dropzones (Greenhouse/S3) re-render after upload; set it and let the fresh
-                # required-scan be the judge of attachment.
+                # async dropzones (Ashby/Greenhouse/S3) upload to a server then CLEAR input.files and
+                # show a filename chip. Set it, then wait for the chip to prove it landed.
                 page.set_input_files(sel, e["value"], timeout=8000)
-                page.wait_for_timeout(1000)
+                _await_upload(page, sel)
             elif t == "radio" or e.get("check") or t == "checkbox":
                 _check(page, sel)
             elif e.get("option") is not None or e.get("options"):     # a <select>
@@ -108,6 +108,33 @@ def _fill_text(page, sel, value):
     loc.press_sequentially(value, delay=12, timeout=6000)
 
 
+# Does the file input's field show an uploaded file (filename chip / remove control)? Async ATS
+# uploaders clear input.files after processing, so this — not files.length — is the truth.
+_ATTACHED_JS = r"""
+(sel) => {
+  const el = document.querySelector(sel);
+  if (!el) return true;                              // gone (re-rendered away) = consumed
+  if (el.files && el.files.length > 0) return true;
+  const box = el.closest('[data-field-path],fieldset,[class*="field" i],div') || document.body;
+  const t = box.innerText || '';
+  if (/[\w().-]+\.(pdf|docx?|odt|rtf|txt|md)\b/i.test(t)) return true;   // a filename is shown
+  return !!box.querySelector('[class*="remove" i],[class*="delete" i],[aria-label*="remove" i],'
+                             + '[class*="uploaded" i],[class*="success" i],[class*="filename" i]');
+}
+"""
+
+
+def _await_upload(page, sel, tries: int = 12):
+    """Wait (up to ~6s) for the async upload to show an attached indicator before moving on."""
+    for _ in range(tries):
+        page.wait_for_timeout(500)
+        try:
+            if page.evaluate(_ATTACHED_JS, sel):
+                return
+        except Exception:
+            return
+
+
 def _check(page, sel):
     """Select a radio/checkbox robustly. Custom-styled controls hide the real input (opacity:0) under
     a label (Ashby, many ATS); a programmatic check silently no-ops and doesn't fire the framework's
@@ -182,7 +209,15 @@ _MISSING_JS = r"""
       const ok=el.name?!!document.querySelector(`input[name="${esc(el.name)}"]:checked`):el.checked;
       if(!ok) missing.push(clean(labelFor(el))); continue; }
     let ok;
-    if(type==='file') ok=el.files && el.files.length>0;
+    if(type==='file'){
+      ok = el.files && el.files.length>0;
+      if(!ok){                                        // async uploaders clear files + show a filename chip
+        const fb = el.closest('[data-field-path],fieldset,[class*="field" i],div') || document.body;
+        const ft = fb.innerText || '';
+        ok = /[\w().-]+\.(pdf|docx?|odt|rtf|txt|md)\b/i.test(ft)
+             || !!fb.querySelector('[class*="remove" i],[class*="delete" i],[class*="uploaded" i],[class*="success" i],[class*="filename" i]');
+      }
+    }
     else if(type==='checkbox') ok=el.checked;
     else if(el.tagName==='SELECT') ok=el.selectedIndex>0 && (el.value||'').trim()!=='';
     else ok=(el.value||'').trim()!=='';
