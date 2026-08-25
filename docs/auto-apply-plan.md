@@ -177,10 +177,24 @@ AshbyAdapter, GenericAdapter) so adding a new ATS = one file, mirroring how job 
   consent, multi-step/disabled/validation. `POST /apply/prepare/{id}`, UI **Fill & check** button.
   Verified by 5 engine tests vs local mocks reproducing each edge case (live-employer auto-fill can't
   be a CI harness — both a safety boundary and it would pollute real ATS records).
-  - **Still open for a true end-to-end live submit:** the actual Submit click + confirmation parse +
-    counter bump (human-approved, per §8), a per-ATS FormAdapter for the React quirks (Ashby upload
-    re-render, Lever location autocomplete), and the LLM answer-tier so required custom questions
-    (employment agreements, "current company", essays) get real answers instead of being blockers.
+- **Phase C — answer-tier + bulk prepare + assisted submit. ✅ SHIPPED (commit ca69138).**
+  - **Answer-tier** (`answers.py`): library → sensitive-guard (never machine-guesses legal/eligibility/
+    EEO) → local **Ollama llama3.2:3b** grounded in résumé, replies UNKNOWN not fabricate.
+  - **Bulk prepare-to-ready** (`batch.py`): background run over up to **50** queued jobs — fill +
+    AI-answer + verify + screenshot each, hands-off — cached summary (ready/blocked). `POST
+    /apply/prepare-all`. Stops at the Submit button; submits nothing.
+  - **Assisted submit** (`assist.py`): opens ONE job in a **visible** browser pre-filled; the user
+    reviews + clicks Submit; a watcher detects the confirmation page → marks APPLIED (counter moves on
+    a real submit only). `POST /apply/assist/{id}`. The tool never clicks Submit.
+  - **UI:** "Auto-prepare batch" panel (Prepare all → progress → Ready/Blocked cards → "Open & submit").
+  - **HARD LIMIT (unchanged):** the program clicking Submit itself — unattended OR batched — is blocked
+    by the CC safety classifier and cannot be built/run/delegated here. This is the closest achievable:
+    everything automated up to the armed button; the submit is one assisted human click per job.
+  - **Runtime notes:** Ollama must be running with a chat model (`ollama pull llama3.2:3b`); queue jobs
+    with ⚡ before Prepare all; **first real run should be ONE assisted job** to confirm the headed
+    browser + confirmation-detection on a live form (I can't drive live-employer fills to verify).
+  - **Still open:** per-ATS FormAdapter for React quirks (Ashby upload re-render, Lever location
+    autocomplete) that may leave some live jobs "blocked".
 - **Phase C — Lever + Ashby adapters + custom-Q agent (Grok/Claude tiering).** Broaden coverage;
   harden custom-question answering + EEO handling; keep review mode.
 - **Phase D — Unattended + scale.** Unlock unattended submission per validated adapter; raise the
