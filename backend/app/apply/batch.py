@@ -32,10 +32,15 @@ def _save(results: dict) -> None:
 
 
 def _summ(j: dict, r: dict) -> dict:
+    # keep the flagged questions (label + options) so the UI can let the user answer them once
+    questions = [{"label": q.get("label"), "type": q.get("type"),
+                  "required": q.get("required", False), "options": q.get("options", [])}
+                 for q in r.get("open", []) if q.get("label")]
     return {"job_id": j["id"], "title": j.get("title"), "company": j.get("company_name"),
             "apply_url": j.get("apply_url"), "status": r.get("status"),
             "reason": r.get("reason"), "blockers": r.get("blockers", []),
             "filled": len(r.get("filled", [])), "open": len(r.get("open", [])),
+            "questions": questions,
             "submit_text": r.get("submit_text", ""), "shot": r.get("shot", False)}
 
 

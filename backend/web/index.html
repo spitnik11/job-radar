@@ -208,6 +208,18 @@
   .asbtn:disabled{opacity:.55;cursor:default}
   .pbl{margin:8px 0 0 18px;padding:0} .pbl li{color:var(--muted);font-size:12px;margin:2px 0}
   .asstat{margin-top:8px}
+  .openqs{margin-top:10px;border-top:1px solid var(--hair);padding-top:10px}
+  .oqh{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .oqrow{margin-bottom:12px}
+  .oql{font-size:12.5px;color:var(--ink);margin-bottom:5px}
+  .oqopts{display:flex;flex-wrap:wrap;gap:6px}
+  .oqpick{text-align:left;padding:6px 10px;font-size:12px;border:1px solid var(--hair);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer;max-width:100%}
+  .oqpick:hover{border-color:var(--accent);color:var(--accent)}
+  .oqpick.sel{border-color:var(--good);background:var(--good-soft);color:var(--good);font-weight:600}
+  .oqfree{display:flex;gap:6px} .oqfree .oqtext{flex:1}
+  .oqsave{padding:6px 12px;font-size:12px;border:1px solid var(--hair);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer}
+  .oqmsg{display:inline-block;margin-top:5px;color:var(--good)}
+  .oqrow.oqdone .oql{color:var(--muted)}
   .dryfoot{margin-top:10px} .dryshot{color:var(--accent);font-weight:600;text-decoration:none}
   @media(max-width:560px){ .kform{grid-template-columns:1fr} }
 
@@ -851,15 +863,28 @@ function qrow(j){ const [cls]=band(j.relevance_score);
     </div>
     <div class="dryprev" style="display:none"></div></div>`; }
 
+// pick-and-save UI for flagged questions -> saved to the answer library, auto-fills next run
+function openQ(qs){
+  qs=(qs||[]).filter(q=>q&&q.label);
+  if(!qs.length) return '';
+  return `<div class="openqs"><div class="oqh">Tell it what to pick — answer once, it saves to your library and auto-fills every run after:</div>${qs.map(q=>{
+    const opts=(q.options||[]);
+    const body = opts.length
+      ? `<div class="oqopts">${opts.map(o=>`<button class="oqpick" data-q="${esc(q.label)}" data-a="${esc(o)}">${esc(o.length>72?o.slice(0,72)+'…':o)}</button>`).join('')}</div>`
+      : `<div class="oqfree"><input class="oqtext excl" data-q="${esc(q.label)}" placeholder="Type your answer"><button class="oqsave">Save</button></div>`;
+    return `<div class="oqrow"><div class="oql">${esc(q.label)}${q.required?' <span class="req">*</span>':''}</div>${body}<span class="oqmsg hint"></span></div>`;
+  }).join('')}</div>`;
+}
+
 function renderPrep(r){
   const shot=r.shot?`<a class="dryshot" href="/api/v1/apply/shot/${encodeURIComponent(r.job_id)}" target="_blank">View filled-form screenshot ↗</a>`:'';
   if(r.status==='ready_to_submit')
     return `<div class="prepok">✓ Submission-ready — all required fields filled${r.submit_text?` · button: “${esc(r.submit_text)}”`:''}. Nothing was submitted; review the screenshot, then apply on the real page.</div>
-      <div class="drymeta">${r.entered||0} fields entered · ${r.field_count||0} on the form.</div><div class="dryfoot">${shot}</div>`;
+      <div class="drymeta">${r.entered||0} fields entered · ${r.field_count||0} on the form.</div>${openQ(r.open)}<div class="dryfoot">${shot}</div>`;
   if(r.status==='error') return `<div class="dryblock">Couldn’t process this form: ${esc(r.reason||'')}</div><div class="dryfoot">${shot}</div>`;
   const bl=(r.blockers||[]).map(b=>`<li>${esc(b)}</li>`).join('');
   return `<div class="prepblock"><b>${(r.blockers||[]).length} thing(s) would stop this application:</b><ul>${bl}</ul></div>
-    <div class="drymeta">${r.entered||0} fields entered · ${r.field_count||0} on the form. Answer/fix the above (or apply manually), then re-check.</div><div class="dryfoot">${shot}</div>`;
+    <div class="drymeta">${r.entered||0} fields entered · ${r.field_count||0} on the form.</div>${openQ(r.open)}<div class="dryfoot">${shot}</div>`;
 }
 
 function renderDry(r){
@@ -1006,7 +1031,7 @@ async function renderApplyView(){
     const act=ready?`<button class="btn asbtn" data-assist="${esc(r.job_id)}">Open &amp; submit</button>`:'';
     return `<div class="pcardrow" data-id="${esc(r.job_id)}"><div class="pcr-h">${pill}
       <div style="flex:1"><div class="rtitle">${esc(r.title||'')}</div><div class="rco">${esc(r.company||'')} · ${r.filled} filled${r.open?` · ${r.open} open`:''} ${shot}</div></div>${act}</div>
-      ${bl}<div class="asstat" style="display:none"></div></div>`;
+      ${bl}${openQ(r.questions)}<div class="asstat" style="display:none"></div></div>`;
   }
   function wireAssist(){
     document.querySelectorAll('#prepresults .asbtn').forEach(btn=>btn.onclick=async ()=>{
@@ -1029,6 +1054,21 @@ async function renderApplyView(){
 }
 
 api('/semantic/status').then(s=>{semanticOn=!!s.enabled;}).catch(()=>{});
+// one delegated handler for all "answer this question" pick/save buttons (survives re-renders)
+document.addEventListener('click', async (e)=>{
+  const pick=e.target.closest('.oqpick'); const save=e.target.closest('.oqsave');
+  if(!pick && !save) return;
+  const row=(pick||save).closest('.oqrow'); const msg=row.querySelector('.oqmsg');
+  let q, a;
+  if(pick){ q=pick.dataset.q; a=pick.dataset.a; }
+  else { const inp=row.querySelector('.oqtext'); q=inp.dataset.q; a=(inp.value||'').trim(); }
+  if(!a){ msg.textContent='type an answer first'; return; }
+  msg.textContent='saving…';
+  try{ await api('/apply/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,answer:a})});
+    msg.textContent='✓ saved — re-run Prepare/Fill & check to auto-fill'; row.classList.add('oqdone');
+    if(pick){ row.querySelectorAll('.oqpick').forEach(b=>b.classList.remove('sel')); pick.classList.add('sel'); }
+  }catch(err){ msg.textContent='could not save'; }
+});
 renderLocation(); renderSources(); load();
 </script>
 </body>

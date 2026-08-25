@@ -351,6 +351,25 @@ def put_kit(body: KitIn):
     return {"ready": apply_kit.is_ready(), "missing": apply_kit.missing_fields()}
 
 
+class AnswerIn(BaseModel):
+    question: str
+    answer: str
+
+
+@router.post("/apply/answer")
+def save_answer(body: AnswerIn):
+    """Record your answer to a flagged question in the kit's answer library, so it auto-fills every
+    run after this (matched by question text). The value is the exact option text (or free text)."""
+    q, ans = body.question.strip(), body.answer.strip()
+    if not q:
+        raise HTTPException(400, "empty question")
+    kit = apply_kit.load_kit()
+    lib = dict(kit.answer_library or {})
+    lib[q] = ans
+    apply_kit.save_kit({"answer_library": lib})       # merged whole-dict, so other entries are kept
+    return {"saved": True, "count": len(lib)}
+
+
 @router.get("/apply/queue", response_model=list[JobListItem])
 def apply_queue():
     profile = load_profile()
