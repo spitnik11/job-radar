@@ -30,6 +30,8 @@ def fill(page, plan: dict) -> dict:
                 # show a filename chip. Set it, then wait for the chip to prove it landed.
                 page.set_input_files(sel, e["value"], timeout=8000)
                 _await_upload(page, sel)
+            elif t in ("buttons", "buttongroup"):       # <button> toggle group (Ashby yes/no) — real click
+                page.click(sel, timeout=4000)
             elif t == "radio" or e.get("check") or t == "checkbox":
                 _check(page, sel)
             elif e.get("option") is not None or e.get("options"):     # a <select>
@@ -222,6 +224,20 @@ _MISSING_JS = r"""
     else if(el.tagName==='SELECT') ok=el.selectedIndex>0 && (el.value||'').trim()!=='';
     else ok=(el.value||'').trim()!=='';
     if(!ok) missing.push(clean(labelFor(el)));
+  }
+  // required <button> toggle groups (Ashby yes/no): missing if no button is pressed/selected
+  const seenG = new Set();
+  for (const btn of document.querySelectorAll('button[aria-pressed], button[class*="option" i], button[class*="yesno" i], [role="radio"]')) {
+    const g = btn.closest('[data-field-path],fieldset,[class*="field-entry" i],[class*="fieldEntry" i],[role="radiogroup"]');
+    if (!g || seenG.has(g)) continue; seenG.add(g);
+    const head = g.querySelector('label,legend,[class*="heading" i]');
+    const req = !!head && (/\*/.test(head.textContent) || /required/i.test(head.className||''))
+                || g.getAttribute('aria-required')==='true';
+    if (!req) continue;
+    const btns = [...g.querySelectorAll('button[aria-pressed],button[class*="option" i],[role="radio"]')];
+    const anySel = btns.some(b => b.getAttribute('aria-pressed')==='true' || b.getAttribute('aria-checked')==='true'
+                                  || /selected|active|checked/i.test(b.className||''));
+    if (!anySel) missing.push(clean((head&&head.innerText)||'(choice)'));
   }
   return [...new Set(missing)];
 }

@@ -175,12 +175,12 @@ def resolve(kit: ApplicationKit, plan: dict, job: dict | None = None) -> tuple[d
                                        "type": q.get("type") or "textarea", "jr": q.get("jr"),
                                        "required": q.get("required", False), "answered_by": "ai"})
                 continue
-        elif opts and q.get("type") in ("radio", "select-one", "select"):   # custom choice question
+        elif opts and q.get("type") in ("radio", "buttongroup", "select-one", "select"):   # custom choice question
             chosen = answer_choice(kit, label, opts, job)
             if chosen is not None:
                 jr = q.get("jr")
-                if q.get("type") == "radio":
-                    jr = (q.get("opt_jrs") or {}).get(chosen)   # the specific option's handle
+                if q.get("type") in ("radio", "buttongroup"):
+                    jr = (q.get("opt_jrs") or {}).get(chosen)   # the specific option/button handle
                 if jr is not None:
                     plan["filled"].append({"label": q.get("label"), "value": chosen, "option": chosen,
                                            "type": q.get("type"), "jr": jr,

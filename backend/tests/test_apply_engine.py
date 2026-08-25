@@ -69,6 +69,22 @@ def test_async_resume_upload_detected_as_attached():
     assert r["status"] == "ready_to_submit", r["blockers"]
 
 
+def test_ashby_button_groups_read_and_filled():
+    # Ashby renders some yes/no questions as <button> toggle groups (not <input>). They must be read,
+    # detected required, mapped from the kit, and filled by clicking the button.
+    from app.apply import engine as eng
+    from app.apply_kit import ApplicationKit
+    url = (MOCKS / "ashby_buttons.html").as_uri()
+    kit = ApplicationKit(full_name="T", email="t@e.com", phone="5", authorized_us=True,
+                         needs_sponsorship=False, resume_path=str(MOCKS / "resume.txt"))
+    r = eng.prepare({"id": "m:btn", "apply_url": url, "title": "x", "company_name": "y"}, kit=kit)
+    assert r["status"] == "ready_to_submit", r["blockers"]
+    btns = [f for f in r["filled"] if f["type"] in ("buttons", "buttongroup")]
+    assert len(btns) == 2
+    assert any("authoriz" in f["label"].lower() and f["option"] == "Yes" for f in btns)
+    assert any("sponsor" in f["label"].lower() and f["option"] == "No" for f in btns)
+
+
 def test_custom_radio_fills_from_answer_library():
     from app.apply import engine as eng
     from app.apply_kit import ApplicationKit

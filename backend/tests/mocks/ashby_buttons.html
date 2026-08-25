@@ -1,0 +1,21 @@
+<!doctype html><meta charset="utf-8"><title>Mock — Ashby yes/no button group</title>
+<h1>Apply</h1>
+<form onsubmit="return false">
+  <fieldset class="_fieldEntry" data-field-path="auth">
+    <label class="_heading _required _label ashby-application-form-question-title">Are you authorized to work in the country where the job is located?</label>
+    <button type="button" class="_container _option ashby-application-form-input-yesno" aria-pressed="false">Yes</button>
+    <button type="button" class="_container _option ashby-application-form-input-yesno" aria-pressed="false">No</button>
+  </fieldset>
+  <fieldset class="_fieldEntry" data-field-path="sponsor">
+    <label class="_heading _required _label ashby-application-form-question-title">Will you now or in the future require sponsorship?</label>
+    <button type="button" class="_option ashby-application-form-input-yesno" aria-pressed="false">Yes</button>
+    <button type="button" class="_option ashby-application-form-input-yesno" aria-pressed="false">No</button>
+  </fieldset>
+  <button type="submit">Submit Application</button>
+</form>
+<script>
+  document.querySelectorAll('._option').forEach(b=>b.addEventListener('click',function(){
+    this.parentElement.querySelectorAll('._option').forEach(x=>x.setAttribute('aria-pressed','false'));
+    this.setAttribute('aria-pressed','true');
+  }));
+</script>

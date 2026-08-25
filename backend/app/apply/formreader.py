@@ -89,6 +89,34 @@ _EXTRACT_JS = r"""
     if (q) e.label = q; else if (!e.label) e.label = e.name || '';
     if (required) e.required = true;
   }
+
+  // Button-group choice questions: some ATS (Ashby yes/no) render single-select as <button> toggles,
+  // not <input>. Group candidate buttons by their field container and emit one buttongroup field each.
+  const groups = new Map();
+  const cand = document.querySelectorAll(
+    'button[aria-pressed], button[class*="option" i], button[class*="yesno" i], button[class*="choice" i], [role="radio"]');
+  for (const btn of cand) {
+    if (!vis(btn) || btn.hasAttribute('data-jr')) continue;
+    const txt = clean(btn.innerText || btn.getAttribute('aria-label') || '');
+    if (!txt || /\b(submit|apply|continue|next|back|upload|remove|add another|sign in|log in)\b/i.test(txt)) continue;
+    const g = btn.closest('[data-field-path],fieldset,[class*="field-entry" i],[class*="fieldEntry" i],[role="radiogroup"]');
+    if (!g) continue;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(btn);
+  }
+  for (const [g, btns] of groups) {
+    if (btns.length < 2) continue;                    // need a real choice
+    const options = [];
+    for (const btn of btns) { btn.setAttribute('data-jr', i); options.push({ text: clean(btn.innerText || btn.getAttribute('aria-label')), jr: i }); i++; }
+    const cand2 = [...g.querySelectorAll('label,legend,[class*="heading" i],[class*="question" i]')]
+      .find(l => !l.closest('[class*="option" i]') && (l.innerText || '').trim());
+    let label = cand2 ? clean(cand2.innerText) : '';
+    let required = cand2 ? (/\*/.test(cand2.textContent) || /required/i.test(cand2.className || '')) : false;
+    if (!required) for (const m of g.querySelectorAll('label,legend,[class*="heading" i]'))
+      if (/required/i.test(m.className || '')) { required = true; break; }
+    out.push({ tag: 'buttongroup', type: 'buttons', name: g.getAttribute('data-field-path') || '',
+               id: '', label: label || (options[0] && options[0].text) || '', required, options });
+  }
   return out;
 }
 """
