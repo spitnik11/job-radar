@@ -365,6 +365,25 @@ def queue_job(job_id: str):
     return _detail(job, load_profile())
 
 
+class QueueTopIn(BaseModel):
+    count: int = 50
+    view: str = "recommended"          # recommended | local | remote — mirrors the feed
+
+
+@router.post("/apply/queue-top")
+def queue_top(body: QueueTopIn):
+    """Bulk-queue the top-N jobs from the feed (best matches first), skipping ones already queued/
+    applied/dismissed. Lets you load up to 50 at once instead of clicking ⚡ per card."""
+    n = max(1, min(body.count, 50))
+    already = len(repo.list_jobs(status="AUTO_QUEUED", limit=99))
+    room = max(0, 50 - already)                    # keep the whole queue at/under 50
+    jobs = repo.list_jobs(view=body.view, geo_enabled=load_profile().geo_enabled,
+                          sort="priority", limit=min(n, room))
+    for j in jobs:
+        repo.set_status(j.id, "AUTO_QUEUED")
+    return {"queued": len(jobs), "queue_total": already + len(jobs), "room": room}
+
+
 @router.get("/apply/status")
 def apply_status():
     return {

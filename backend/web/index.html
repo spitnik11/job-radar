@@ -904,6 +904,13 @@ async function renderApplyView(){
     <div class="pcard">
       <h4>Auto-prepare batch</h4>
       <div class="submeta">Fills, AI-answers, verifies &amp; screenshots every queued job (up to 50), hands-off — then stops at the Submit button. Use <b>Open &amp; submit</b> on a ready job to review it in a real browser and apply; Jobber counts it once the confirmation page appears. <b>Nothing is submitted automatically.</b></div>
+      <div style="margin:10px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label class="hint" style="display:flex;align-items:center;gap:6px">Queue top
+          <input id="qtopn" type="number" min="1" max="50" value="50" class="excl" style="width:58px;padding:4px 6px">
+          from feed</label>
+        <button class="btn" id="queuetop">Queue</button>
+        <span id="qtophint" class="hint"></span>
+      </div>
       <div style="margin:10px 0;display:flex;align-items:center;gap:12px">
         <button class="btn primary" id="prepall">Prepare all queued</button>
         <span id="prepprog" class="hint"></span>
@@ -935,7 +942,6 @@ async function renderApplyView(){
   let queue=[]; try{ queue=await api('/apply/queue'); }catch(_){}
   document.getElementById('queuelist').innerHTML = queue.length? queue.map(qrow).join('')
     : '<div class="empty">No jobs queued yet. Use the ⚡ button on a job in the feed to queue it.</div>';
-  document.querySelectorAll('#queuelist .qopen').forEach(o=>o.onclick=()=>openDetail(o.closest('.qwrap').dataset.id));
   const runInto=async (btn, path, render, working)=>{
     const prev=btn.closest('.qwrap').querySelector('.dryprev');
     if(prev.style.display==='block' && prev.dataset.done===btn.dataset.mode){ prev.style.display='none'; prev.dataset.done=''; return; }
@@ -946,10 +952,30 @@ async function renderApplyView(){
     catch(e){ prev.innerHTML='<div class="dryblock">Run failed. Is the job page reachable?</div>'; }
     btn.disabled=false; btn.textContent=old;
   };
-  document.querySelectorAll('#queuelist .drybtn').forEach(btn=>{ btn.dataset.mode='dry';
-    btn.onclick=()=>runInto(btn,'/apply/dryrun/'+encodeURIComponent(btn.dataset.dry),renderDry,'Opening the apply page and reading the form… (~5s, nothing is submitted)'); });
-  document.querySelectorAll('#queuelist .prepbtn').forEach(btn=>{ btn.dataset.mode='prep';
-    btn.onclick=()=>runInto(btn,'/apply/prepare/'+encodeURIComponent(btn.dataset.prep),renderPrep,'Filling the real form and checking every required field… (~8s, nothing is submitted)'); });
+  function wireQueue(){
+    document.querySelectorAll('#queuelist .qopen').forEach(o=>o.onclick=()=>openDetail(o.closest('.qwrap').dataset.id));
+    document.querySelectorAll('#queuelist .drybtn').forEach(btn=>{ btn.dataset.mode='dry';
+      btn.onclick=()=>runInto(btn,'/apply/dryrun/'+encodeURIComponent(btn.dataset.dry),renderDry,'Opening the apply page and reading the form… (~5s, nothing is submitted)'); });
+    document.querySelectorAll('#queuelist .prepbtn').forEach(btn=>{ btn.dataset.mode='prep';
+      btn.onclick=()=>runInto(btn,'/apply/prepare/'+encodeURIComponent(btn.dataset.prep),renderPrep,'Filling the real form and checking every required field… (~8s, nothing is submitted)'); });
+  }
+  wireQueue();
+
+  // ---- bulk queue top-N from the feed ----
+  const qtop=document.getElementById('queuetop');
+  if(qtop) qtop.onclick=async ()=>{
+    const n=Math.max(1,Math.min(50,parseInt(document.getElementById('qtopn').value)||50));
+    qtop.disabled=true; document.getElementById('qtophint').textContent='Queuing…';
+    try{ const r=await api('/apply/queue-top',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({count:n,view:view==='apply'?'recommended':view})});
+      document.getElementById('qtophint').textContent = r.queued
+        ? `Queued ${r.queued} — queue now ${r.queue_total}. Hit “Prepare all queued”.`
+        : (r.room===0?'Queue is already full (50).':'No new jobs to queue.');
+      refreshBadges(); const qh=[...document.querySelectorAll('.pcard h4')].find(h=>h.textContent.startsWith('Queue')); if(qh) qh.textContent=`Queue · ${r.queue_total} jobs`;
+      let queue=[]; try{ queue=await api('/apply/queue'); }catch(_){}
+      const ql=document.getElementById('queuelist'); if(ql){ ql.innerHTML=queue.length?queue.map(qrow).join(''):'<div class="empty">No jobs queued yet.</div>'; wireQueue(); }
+    }catch(e){ document.getElementById('qtophint').textContent='Could not queue.'; }
+    qtop.disabled=false;
+  };
 
   // ---- batch prepare-all + assisted submit ----
   const prepAll=document.getElementById('prepall');
