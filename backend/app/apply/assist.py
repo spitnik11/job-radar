@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import threading
 
-from ..apply_kit import load_kit
+import re
+
+from ..apply_kit import load_kit, save_kit
 from . import answers, filler, formreader, mapping
 
 _CONFIRM = ("thank you", "application received", "we received your application", "successfully submitted",
@@ -42,13 +44,47 @@ def confirmed(page) -> bool:
     return any(h in body for h in _CONFIRM)
 
 
-def _fill_all(page, kit, jctx) -> None:
+# Standard/PII fields already in the kit — never learn these into the answer library.
+_STANDARD = re.compile(
+    r"\b(first|last|full|legal|preferred)?\s*name\b|email|phone|mobile|resume|\bcv\b|linkedin|github|"
+    r"portfolio|website|address|city|state|country|zip|postal|locat|salary|compensation", re.I)
+
+
+def _fill_all(page, kit, jctx) -> tuple[set, dict]:
+    """Fill the form; return (open_labels, filled_snapshot) so we can later learn what the user changed
+    or answered themselves."""
     fields = formreader.read_form(page)
     if not fields:
-        return
+        return set(), {}
     plan = mapping.map_fields(kit, fields)
-    plan, _ = answers.resolve(kit, plan, jctx)
+    plan, still_open = answers.resolve(kit, plan, jctx)
     filler.fill(page, plan)
+    open_labels = {(q.get("label") or "").strip().lower() for q in still_open if q.get("label")}
+    snap = {(f.get("label") or "").strip().lower(): str(f.get("option") or f.get("value") or "")
+            for f in plan["filled"]}
+    return open_labels, snap
+
+
+def _learn(kit, final_answers: list, open_labels: set, snap: dict) -> int:
+    """Save what the user did: their answer to a custom question we couldn't fill, or a correction to
+    one we filled wrong — into the kit's answer_library so future runs auto-fill it. Skips standard
+    PII fields (already in the kit). Returns how many answers were learned."""
+    learned = {}
+    for a in (final_answers or []):
+        label = (a.get("label") or "").strip()
+        value = (a.get("value") or "").strip()
+        low = label.lower()
+        if not label or not value or _STANDARD.search(low):
+            continue
+        prev = snap.get(low)                          # what we auto-filled (None if we didn't/couldn't)
+        if prev is None or prev.strip().lower() != value.lower():
+            learned[label] = value                    # custom Q the user answered, a field we missed, or a correction
+    if not learned:
+        return 0
+    lib = dict(kit.answer_library or {})
+    lib.update(learned)
+    save_kit({"answer_library": lib})
+    return len(learned)
 
 
 def _heal(page, kit, jctx, flagged: list[str]) -> int:
@@ -91,13 +127,14 @@ def _run(job: dict, on_confirm) -> None:
             page.wait_for_timeout(2500)
             kit = load_kit()
             jctx = {"title": job.get("title"), "company": job.get("company_name")}
-            if formreader.read_form(page):
-                _fill_all(page, kit, jctx)
-            _set(job_id, "review", "Filled — review every field, then click Submit. If the form flags "
-                                   "anything, Jobber auto-fills what it can — just Submit again.")
+            open_labels, snap = ((set(), {}) if not formreader.read_form(page)
+                                 else _fill_all(page, kit, jctx))
+            _set(job_id, "review", "Filled — review/finish every field, then click Submit. Jobber learns "
+                                   "what you type or pick and auto-fills it next time.")
             # watch for submission (never submit for them). If validation catches it, self-heal the
-            # flagged fields, then wait for the re-submit. ~12 min, or until they close it.
-            heals, seen = 0, set()
+            # flagged fields, then wait for the re-submit. ~12 min, or until they close it. Keep a
+            # rolling snapshot of the form's answers so we can learn even if they close without a confirm.
+            heals, seen, last, tick = 0, set(), [], 0
             for _ in range(360):
                 page.wait_for_timeout(2000)
                 try:
@@ -107,7 +144,10 @@ def _run(job: dict, on_confirm) -> None:
                             on_confirm(job_id)
                         except Exception:
                             pass
-                        page.wait_for_timeout(4000)
+                        got = _learn(kit, filler.read_answers(page), open_labels, snap)   # learn from the submitted form
+                        if got:
+                            _set(job_id, "submitted", f"Applied — learned {got} of your answers for next time.")
+                        page.wait_for_timeout(3000)
                         break
                     if heals < 4:                           # validation-error field discovery + self-heal
                         flagged = filler.flagged_fields(page)
@@ -119,11 +159,18 @@ def _run(job: dict, on_confirm) -> None:
                             if n:
                                 _set(job_id, "review", f"The form flagged {len(flagged)} field(s); "
                                      f"Jobber auto-filled {n} — click Submit again.")
+                    tick += 1
+                    if tick % 3 == 0:                       # ~every 6s, remember what's on the form
+                        snap_now = filler.read_answers(page)
+                        if snap_now:
+                            last = snap_now
                     _ = page.title()                        # raises if the user closed the window
                 except Exception:
-                    _set(job_id, "closed", "Browser closed before a confirmation was seen.")
+                    _learn(kit, last, open_labels, snap)    # learn from the last snapshot before it closed
+                    _set(job_id, "closed", "Browser closed. Learned your answers where possible.")
                     break
             else:
+                _learn(kit, last, open_labels, snap)
                 _set(job_id, "closed", "Timed out waiting for submission.")
             try:
                 browser.close()

@@ -1,0 +1,14 @@
+<!doctype html><meta charset="utf-8"><title>Mock — learn from manual fill</title>
+<form onsubmit="return false">
+  <label>Full Name *<input id="nm"></label>
+  <fieldset class="_fieldEntry" data-field-path="q1"><label class="_heading _label">What excites you about this role?</label><textarea id="q1"></textarea></fieldset>
+  <fieldset class="_fieldEntry" data-field-path="q2"><label class="_heading _label">Preferred work style?</label>
+    <button type="button" class="_option" aria-pressed="false">Remote</button>
+    <button type="button" class="_option" aria-pressed="false">Hybrid</button></fieldset>
+</form>
+<script>
+  document.querySelectorAll('._option').forEach(b=>b.addEventListener('click',function(){
+    this.parentElement.querySelectorAll('._option').forEach(x=>x.setAttribute('aria-pressed','false'));
+    this.setAttribute('aria-pressed','true');
+  }));
+</script>

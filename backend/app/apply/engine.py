@@ -167,7 +167,14 @@ def _run(job: dict, *, fill: bool, kit=None) -> dict:
         ctx = browser.new_context(viewport={"width": 1280, "height": 1600}, user_agent=_UA)
         page = ctx.new_page()
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            except Exception:
+                # slow company-careers page or a dead/stale posting — don't crash, let the user open it
+                _screenshot(page, shot)
+                return {**base, "status": "blocked", "shot": bool(shot),
+                        "reason": "page didn't load in time (slow site or stale posting) — open it manually",
+                        "blockers": ["page load timed out (possibly stale)"]}
             page.wait_for_timeout(2500)
             block = _captcha_or_login(page)
             fields = _reach_form(page)

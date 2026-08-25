@@ -883,10 +883,12 @@ function renderPrep(r){
       <div class="drymeta">${r.entered||0} fields entered · ${r.field_count||0} on the form.</div>${openQ(r.open)}
       <div style="margin-top:10px"><button class="btn asbtn primary" data-assist="${esc(r.job_id)}">Open &amp; submit ↗</button></div>
       <div class="asstat" style="display:none"></div><div class="dryfoot">${shot}</div>`;
-  if(r.status==='error') return `<div class="dryblock">Couldn’t process this form: ${esc(r.reason||'')}</div><div class="dryfoot">${shot}</div>`;
+  const manual=`<div style="margin-top:10px"><button class="btn asbtn" data-assist="${esc(r.job_id)}">Open &amp; finish manually ↗</button>
+    <span class="hint" style="margin-left:8px">fills what it can — you complete the rest &amp; Submit; Jobber learns your answers</span></div><div class="asstat" style="display:none"></div>`;
+  if(r.status==='error') return `<div class="dryblock">Couldn’t process this form: ${esc(r.reason||'')}</div>${manual}<div class="dryfoot">${shot}</div>`;
   const bl=(r.blockers||[]).map(b=>`<li>${esc(b)}</li>`).join('');
   return `<div class="prepblock"><b>${(r.blockers||[]).length} thing(s) would stop this application:</b><ul>${bl}</ul></div>
-    <div class="drymeta">${r.entered||0} fields entered · ${r.field_count||0} on the form.</div>${openQ(r.open)}<div class="dryfoot">${shot}</div>`;
+    <div class="drymeta">${r.entered||0} fields entered · ${r.field_count||0} on the form.</div>${openQ(r.open)}${manual}<div class="dryfoot">${shot}</div>`;
 }
 
 function renderDry(r){
@@ -1030,7 +1032,8 @@ async function renderApplyView(){
     const pill=ready?'<span class="ppill ok">Ready</span>':r.status==='blocked'?'<span class="ppill warn">Blocked</span>':`<span class="ppill">${esc(r.status||'')}</span>`;
     const shot=r.shot?`<a class="dryshot" href="/api/v1/apply/shot/${encodeURIComponent(r.job_id)}" target="_blank">screenshot ↗</a>`:'';
     const bl=(r.blockers||[]).length?`<ul class="pbl">${r.blockers.map(b=>`<li>${esc(b)}</li>`).join('')}</ul>`:'';
-    const act=ready?`<button class="btn asbtn" data-assist="${esc(r.job_id)}">Open &amp; submit</button>`:'';
+    const act=ready?`<button class="btn asbtn" data-assist="${esc(r.job_id)}">Open &amp; submit</button>`
+      :(r.status!=='none'?`<button class="btn asbtn" data-assist="${esc(r.job_id)}" title="Fills what it can — you finish + Submit; Jobber learns your answers">Open manually</button>`:'');
     return `<div class="pcardrow" data-id="${esc(r.job_id)}"><div class="pcr-h">${pill}
       <div style="flex:1"><div class="rtitle">${esc(r.title||'')}</div><div class="rco">${esc(r.company||'')} · ${r.filled} filled${r.open?` · ${r.open} open`:''} ${shot}</div></div>${act}</div>
       ${bl}${openQ(r.questions)}<div class="asstat" style="display:none"></div></div>`;

@@ -279,6 +279,59 @@ def flagged_fields(page) -> list[str]:
         return []
 
 
+# Read the CURRENT answers on the form (what's actually entered/selected right now). Used to learn
+# from a user's manual fill: [{label, value, type}] for every filled control.
+_ANSWERS_JS = r"""
+() => {
+  const clean = s => (s||'').replace(/\s+/g,' ').replace(/\*$/,'').trim();
+  const esc = s => (window.CSS && CSS.escape) ? CSS.escape(s) : (s||'').replace(/"/g,'\\"');
+  const vis = el => { const r=el.getBoundingClientRect(), s=getComputedStyle(el);
+    return s.display!=='none' && s.visibility!=='hidden' && (r.width>0||r.height>0||el.type==='file'||el.tagName==='SELECT'); };
+  const groupLabel = el => {                          // question heading of the field/fieldset (not an option)
+    const g = el.closest('fieldset,[data-field-path],[role="radiogroup"],[class*="field" i],div');
+    if (g) { const c=[...g.querySelectorAll('label,legend,[class*="heading" i]')].find(l=>!l.closest('[class*="option" i]')&&(l.innerText||'').trim());
+             if (c) return clean(c.innerText); }
+    return '';
+  };
+  const labelOf = el => {
+    if (el.id){ const l=document.querySelector(`label[for="${esc(el.id)}"]`); if(l&&l.innerText.trim()) return clean(l.innerText); }
+    const w=el.closest('label'); if(w&&w.innerText.trim()) return clean(w.innerText);
+    if(el.getAttribute('aria-label')) return clean(el.getAttribute('aria-label'));
+    return groupLabel(el) || clean(el.placeholder||el.name||'');
+  };
+  const out = [];
+  for (const el of document.querySelectorAll('input,textarea,select')) {
+    const type=(el.type||el.tagName).toLowerCase();
+    if(['submit','button','reset','image','hidden','file'].includes(type)) continue;
+    if(!vis(el)) continue;
+    let label='', value='';
+    if(type==='radio'){ if(!el.checked) continue; label=groupLabel(el)||labelOf(el); value=clean(labelOf(el)); }
+    else if(type==='checkbox'){ if(!el.checked) continue; label=labelOf(el); value='Yes'; }
+    else if(el.tagName==='SELECT'){ if(el.selectedIndex<=0) continue; label=labelOf(el); value=clean(el.options[el.selectedIndex].text); }
+    else { value=clean(el.value); if(!value) continue; label=labelOf(el); }
+    if(label) out.push({label, value, type});
+  }
+  // button-toggle groups: the pressed/selected button
+  const seen=new Set();
+  for (const btn of document.querySelectorAll('button[aria-pressed="true"], button[aria-checked="true"], button[class*="option" i].selected, button[class*="option" i][class*="active" i]')) {
+    const g = btn.closest('fieldset,[data-field-path],[role="radiogroup"],[class*="field" i]');
+    if(!g || seen.has(g)) continue; seen.add(g);
+    const label=groupLabel(btn); const value=clean(btn.innerText||btn.getAttribute('aria-label'));
+    if(label && value) out.push({label, value, type:'buttons'});
+  }
+  return out;
+}
+"""
+
+
+def read_answers(page) -> list[dict]:
+    """Current answers on the form (label/value/type for every filled control) — for learning."""
+    try:
+        return page.evaluate(_ANSWERS_JS) or []
+    except Exception:
+        return []
+
+
 def missing_required(page, fields: list[dict] | None = None) -> list[str]:
     """Labels of required fields still empty on the live form (fresh scan) MERGED with fields the
     form's own validation is flagging (`fields` arg ignored)."""
