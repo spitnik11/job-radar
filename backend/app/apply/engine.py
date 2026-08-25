@@ -150,7 +150,9 @@ def _run(job: dict, *, fill: bool, kit=None) -> dict:
                         "blockers": [block or "no reachable form"]}
 
             plan = mapping.map_fields(kit, fields)
-            plan, still_open = answers.resolve(kit, plan)
+            jctx = {"title": job.get("title"), "company": job.get("company_name"),
+                    "description": job.get("description", "")}
+            plan, still_open = answers.resolve(kit, plan, jctx)
 
             if not fill:                                 # Phase A preview — no interaction
                 _screenshot(page, shot)

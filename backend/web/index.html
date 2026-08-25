@@ -200,6 +200,14 @@
   .prepblock{padding:10px 12px;border-radius:10px;background:rgba(201,138,18,.12);color:var(--ink)}
   .prepblock b{color:var(--ok)} .prepblock ul{margin:6px 0 0 16px;padding:0} .prepblock li{margin:3px 0;color:var(--muted)}
   .prepbtn:hover{border-color:var(--good);color:var(--good)}
+  .pcardrow{border:1px solid var(--hair);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:var(--surface)}
+  .pcr-h{display:flex;align-items:center;gap:12px}
+  .ppill{font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:var(--hairwash,rgba(120,120,120,.12));color:var(--muted);white-space:nowrap}
+  .ppill.ok{background:var(--good-soft);color:var(--good)} .ppill.warn{background:rgba(201,138,18,.14);color:var(--ok)}
+  .asbtn{flex:none;padding:6px 12px;font-size:12px;font-weight:600;border:1px solid var(--good);border-radius:9px;background:var(--good-soft);color:var(--good);cursor:pointer}
+  .asbtn:disabled{opacity:.55;cursor:default}
+  .pbl{margin:8px 0 0 18px;padding:0} .pbl li{color:var(--muted);font-size:12px;margin:2px 0}
+  .asstat{margin-top:8px}
   .dryfoot{margin-top:10px} .dryshot{color:var(--accent);font-weight:600;text-decoration:none}
   @media(max-width:560px){ .kform{grid-template-columns:1fr} }
 
@@ -894,6 +902,15 @@ async function renderApplyView(){
       <div style="margin-top:12px"><button class="btn primary" id="ksave">Save kit</button><span id="ksaved" class="hint" style="margin-left:10px"></span></div>
     </div>
     <div class="pcard">
+      <h4>Auto-prepare batch</h4>
+      <div class="submeta">Fills, AI-answers, verifies &amp; screenshots every queued job (up to 50), hands-off — then stops at the Submit button. Use <b>Open &amp; submit</b> on a ready job to review it in a real browser and apply; Jobber counts it once the confirmation page appears. <b>Nothing is submitted automatically.</b></div>
+      <div style="margin:10px 0;display:flex;align-items:center;gap:12px">
+        <button class="btn primary" id="prepall">Prepare all queued</button>
+        <span id="prepprog" class="hint"></span>
+      </div>
+      <div id="prepresults"></div>
+    </div>
+    <div class="pcard">
       <h4>Queue · ${st.queued||0} jobs</h4>
       <div class="submeta">Queue jobs from the feed with the ⚡ button, then hit <b>Dry run</b> to see exactly what the kit would fill on the real form — a safe preview with a screenshot, <b>nothing is submitted</b>. Review-then-submit comes in the next phase.</div>
       <div id="queuelist" style="margin-top:10px"></div>
@@ -933,6 +950,56 @@ async function renderApplyView(){
     btn.onclick=()=>runInto(btn,'/apply/dryrun/'+encodeURIComponent(btn.dataset.dry),renderDry,'Opening the apply page and reading the form… (~5s, nothing is submitted)'); });
   document.querySelectorAll('#queuelist .prepbtn').forEach(btn=>{ btn.dataset.mode='prep';
     btn.onclick=()=>runInto(btn,'/apply/prepare/'+encodeURIComponent(btn.dataset.prep),renderPrep,'Filling the real form and checking every required field… (~8s, nothing is submitted)'); });
+
+  // ---- batch prepare-all + assisted submit ----
+  const prepAll=document.getElementById('prepall');
+  if(prepAll){
+    prepAll.onclick=async ()=>{
+      prepAll.disabled=true;
+      try{ await api('/apply/prepare-all',{method:'POST'}); }catch(e){ prepAll.disabled=false; return; }
+      pollPrep();
+    };
+    renderPrepStatus();   // show any prior run's results on load
+  }
+  async function renderPrepStatus(){ try{ pollPrep(true); }catch(_){} }
+  async function pollPrep(once){
+    let s; try{ s=await api('/apply/prepare-all/status'); }catch(e){ return; }
+    const prog=document.getElementById('prepprog'); const box=document.getElementById('prepresults');
+    if(!prog||!box) return;
+    if(s.running){ prog.textContent=`Preparing ${s.done}/${s.total}… (fills + AI answers + verify, ~10-25s each)`; prepAll.disabled=true; }
+    else { prog.textContent=s.results&&s.results.length?`${s.ready||0} of ${s.results.length} ready to submit`:''; prepAll.disabled=false; }
+    box.innerHTML=(s.results||[]).map(prepCard).join('');
+    wireAssist();
+    if(s.running && !once) setTimeout(pollPrep,3000);
+  }
+  function prepCard(r){
+    const ready=r.status==='ready_to_submit';
+    const pill=ready?'<span class="ppill ok">Ready</span>':r.status==='blocked'?'<span class="ppill warn">Blocked</span>':`<span class="ppill">${esc(r.status||'')}</span>`;
+    const shot=r.shot?`<a class="dryshot" href="/api/v1/apply/shot/${encodeURIComponent(r.job_id)}" target="_blank">screenshot ↗</a>`:'';
+    const bl=(r.blockers||[]).length?`<ul class="pbl">${r.blockers.map(b=>`<li>${esc(b)}</li>`).join('')}</ul>`:'';
+    const act=ready?`<button class="btn asbtn" data-assist="${esc(r.job_id)}">Open &amp; submit</button>`:'';
+    return `<div class="pcardrow" data-id="${esc(r.job_id)}"><div class="pcr-h">${pill}
+      <div style="flex:1"><div class="rtitle">${esc(r.title||'')}</div><div class="rco">${esc(r.company||'')} · ${r.filled} filled${r.open?` · ${r.open} open`:''} ${shot}</div></div>${act}</div>
+      ${bl}<div class="asstat" style="display:none"></div></div>`;
+  }
+  function wireAssist(){
+    document.querySelectorAll('#prepresults .asbtn').forEach(btn=>btn.onclick=async ()=>{
+      const row=btn.closest('.pcardrow'); const stat=row.querySelector('.asstat');
+      stat.style.display='block'; stat.innerHTML='<span class="hint">Opening a browser window with your details pre-filled — review every field, then click the form’s Submit. Jobber will detect the confirmation.</span>';
+      btn.disabled=true;
+      try{ await api('/apply/assist/'+encodeURIComponent(btn.dataset.assist),{method:'POST'}); }catch(e){ stat.innerHTML='<span class="hint">Could not open the browser session.</span>'; btn.disabled=false; return; }
+      pollAssist(btn.dataset.assist,row,btn);
+    });
+  }
+  async function pollAssist(id,row,btn){
+    let all; try{ all=await api('/apply/assist/status'); }catch(e){ return; }
+    const s=all[id]||{status:'none'}; const stat=row.querySelector('.asstat');
+    const msg={opening:'Opening browser…',review:'Filled — review the form and click Submit.',submitted:'✓ Submitted — marked as applied.',closed:'Browser closed before submit.',error:'Session error.'}[s.status]||s.status;
+    stat.innerHTML=`<span class="hint">${esc(msg)}${s.reason&&s.status!=='review'?' — '+esc(s.reason):''}</span>`;
+    if(s.status==='submitted'){ row.querySelector('.ppill').outerHTML='<span class="ppill ok">Applied</span>'; btn.remove(); refreshBadges(); return; }
+    if(['closed','error','none'].includes(s.status)){ btn.disabled=false; return; }
+    setTimeout(()=>pollAssist(id,row,btn),2500);
+  }
 }
 
 api('/semantic/status').then(s=>{semanticOn=!!s.enabled;}).catch(()=>{});

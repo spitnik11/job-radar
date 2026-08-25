@@ -404,6 +404,51 @@ def apply_prepare(job_id: str):
                                  "title": job.title, "company_name": job.company_name})
 
 
+def _job_dict(j):
+    return {"id": j.id, "apply_url": j.apply_url, "title": j.title,
+            "company_name": j.company_name, "description": j.description_text or ""}
+
+
+@router.post("/apply/prepare-all")
+def apply_prepare_all():
+    """Kick off a hands-off batch: fill + AI-answer + verify + screenshot every queued job (up to 50),
+    stopping at the armed Submit button on each. Returns immediately; poll /apply/prepare-all/status."""
+    if not apply_kit.is_ready():
+        raise HTTPException(400, {"error": "kit incomplete", "missing": apply_kit.missing_fields()})
+    from ..apply import batch
+    jobs = [_job_dict(j) for j in repo.list_jobs(status="AUTO_QUEUED", limit=batch.MAX)]
+    if not jobs:
+        raise HTTPException(400, {"error": "no jobs queued"})
+    started = batch.start(jobs)
+    return {"started": started, "queued": len(jobs), "running": True}
+
+
+@router.get("/apply/prepare-all/status")
+def apply_prepare_all_status():
+    from ..apply import batch
+    return batch.status()
+
+
+@router.post("/apply/assist/{job_id:path}")
+def apply_assist(job_id: str):
+    """Open the job's apply page in a VISIBLE browser, pre-fill it, and let the user review and click
+    Submit themselves. The tool watches for the confirmation page and, only then, marks it APPLIED."""
+    job = repo.get(job_id)
+    if job is None:
+        raise HTTPException(404, "job not found")
+    if not apply_kit.is_ready():
+        raise HTTPException(400, {"error": "kit incomplete", "missing": apply_kit.missing_fields()})
+    from ..apply import assist
+    assist.start(_job_dict(job), on_confirm=lambda jid: repo.set_status(jid, "APPLIED"))
+    return {"started": True, "job_id": job_id}
+
+
+@router.get("/apply/assist/status")
+def apply_assist_status():
+    from ..apply import assist
+    return assist.status()
+
+
 @router.get("/apply/shot/{job_id:path}")
 def apply_shot(job_id: str):
     from ..apply.engine import shot_path
