@@ -25,17 +25,23 @@ def _title_tokens(title: str) -> set[str]:
     return {w for w in words if w not in _TITLE_STOP and w not in _TITLE_NOISE}
 
 
+# Tier preference: A = the target analyst/support/AI-enablement lane (full weight); B = generic dev,
+# C = AI-engineer/dev — kept as fallbacks but scored lower so they don't outrank the target lane.
+# (AI jobs still get boosted via the skills factor, so "AI priority" is preserved.)
+_TIER_W = {"A": 1.0, "B": 0.70, "C": 0.72}
+
+
 def _role_match(title: str, profile: CandidateProfile):
     jt = _title_tokens(title)
-    best_sim, best_tier, best_name = 0.0, None, None
+    best_w, best_tier, best_name = 0.0, None, None
     for role in profile.target_roles:
         rt = _title_tokens(role.title)
         if not rt:
             continue
-        sim = len(jt & rt) / len(rt)
-        if sim > best_sim:
-            best_sim, best_tier, best_name = sim, role.tier, role.title
-    return best_sim, best_tier, best_name
+        w = (len(jt & rt) / len(rt)) * _TIER_W.get(role.tier, 0.8)   # tier-weighted match quality
+        if w > best_w:
+            best_w, best_tier, best_name = w, role.tier, role.title
+    return best_w, best_tier, best_name
 
 
 def _days_old(dt) -> float | None:
