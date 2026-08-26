@@ -29,6 +29,25 @@ _SCALAR_FIELDS = [
 ]
 
 
+import re as _re
+
+_WS = _re.compile(r"\s+")
+
+
+def _dedupe_listings(rows: list) -> list:
+    """Collapse the same role reposted as multiple reqs: keep one per (company, normalized-title) —
+    the first, which (because rows are ordered best-first) is the highest-ranked copy. Titles that
+    bake in a distinct location (e.g. '… - Fort Worth' vs '… - Columbus') differ, so they survive."""
+    seen, out = set(), []
+    for r in rows:
+        key = ((r.company_name or "").strip().lower(), _WS.sub(" ", (r.title or "").lower()).strip())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -123,6 +142,7 @@ class SQLiteJobRepository:
         query: Optional[str] = None,
         sort: str = "priority",
         limit: int = 500,
+        dedupe: bool = True,             # collapse same company+title reposted as multiple reqs
     ) -> list[CanonicalJob]:
         stmt = select(Job)
         if status:
@@ -181,9 +201,14 @@ class SQLiteJobRepository:
             stmt = stmt.order_by(Job.relevance_score.asc(), Job.priority_score.desc())
         else:
             stmt = stmt.order_by(Job.priority_score.desc(), Job.relevance_score.desc())
-        stmt = stmt.limit(limit)
+        # when deduping, over-fetch (the query is ordered best-first, so the first copy of each
+        # company+title is the best one to keep), then collapse and trim to `limit`.
+        stmt = stmt.limit(limit if not dedupe else min(limit * 3, 4000))
         with SessionLocal() as s:
-            return [_to_canonical(r) for r in s.execute(stmt).scalars()]
+            rows = list(s.execute(stmt).scalars())
+        if dedupe and not (status or status_in):     # only collapse the browsing feed, not exact lists
+            rows = _dedupe_listings(rows)
+        return [_to_canonical(r) for r in rows[:limit]]
 
     def rescore_all(self) -> int:
         """Re-run scoring on every stored job using current profile + their saved enrichment
