@@ -6,13 +6,26 @@ search:
   include_remote: true
   include_hybrid: true
   include_onsite: true
-  minimum_score: 65
-  max_required_years: 5
+  minimum_score: 50        # broadened selection — surface more adjacent roles; ranking still prioritizes fit
+  max_required_years: 6
 
 # Target role families (spec section 4). Tier A = strongest, B = development, C = AI.
 target_roles:
-  - { title: application support analyst, tier: A }
+  # AI-adjacent analyst / enablement lane — the real target (from the application tracker) + B.A.S.
+  # Technology Development & Management fit
+  - { title: ai business analyst, tier: A }
+  - { title: business analyst, tier: A }
+  - { title: technical business analyst, tier: A }
   - { title: business systems analyst, tier: A }
+  - { title: ai implementation specialist, tier: A }
+  - { title: ai implementation analyst, tier: A }
+  - { title: ai enablement analyst, tier: A }
+  - { title: business transformation analyst, tier: A }
+  - { title: solutions analyst, tier: A }
+  - { title: data analyst, tier: A }
+  - { title: program analyst, tier: A }
+  - { title: project coordinator, tier: A }
+  - { title: application support analyst, tier: A }
   - { title: implementation specialist, tier: A }
   - { title: qa analyst, tier: A }
   - { title: it support specialist, tier: A }

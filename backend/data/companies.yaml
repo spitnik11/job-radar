@@ -4,6 +4,17 @@
 # Disable a whole source in settings.yaml (sources:).
 
 greenhouse:
+  # Analyst / implementation / support / AI-enablement–heavy employers (verified live 2026-08-26;
+  # these post the business/systems/application-analyst + specialist roles you actually apply to)
+  - { token: toast, name: Toast, domain: toasttab.com }
+  - { token: flexport, name: Flexport, domain: flexport.com }
+  - { token: brex, name: Brex, domain: brex.com }
+  - { token: chime, name: Chime, domain: chime.com }
+  - { token: checkr, name: Checkr, domain: checkr.com }
+  - { token: remotecom, name: Remote, domain: remote.com }
+  - { token: smartsheet, name: Smartsheet, domain: smartsheet.com }
+  - { token: airtable, name: Airtable, domain: airtable.com }
+  - { token: faire, name: Faire, domain: faire.com }
   - { token: gitlab, name: GitLab, domain: gitlab.com }
   - { token: cloudflare, name: Cloudflare, domain: cloudflare.com }
   - { token: gusto, name: Gusto, domain: gusto.com }

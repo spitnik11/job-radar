@@ -422,6 +422,17 @@ function filterView(list){
   if(currentView==='remote') return list.filter(j=>j.remote);
   return list;                                                   // recommended = full pool
 }
+// Round-robin by company so the feed cycles through UNIQUE employers before repeating one — no more
+// 10 OpenAI/Affirm postings in a row. Each company's jobs stay in their pool (priority) order, so we
+// still lead with each company's best match.
+function diversifyByCompany(list){
+  const buckets=new Map();
+  for(const j of list){ const k=(j.company_name||j.company_token||j.id||'').toLowerCase();
+    if(!buckets.has(k)) buckets.set(k,[]); buckets.get(k).push(j); }
+  const out=[]; let any=true;
+  while(any){ any=false; for(const arr of buckets.values()){ if(arr.length){ out.push(arr.shift()); any=true; } } }
+  return out;
+}
 function clientSort(list){
   const s=sortMode, a=list.slice(), dt=j=>new Date((j.date_posted||'')+((j.date_posted&&!/[Z+]/.test(j.date_posted.slice(10)))?'Z':''))||0;
   if(s==='score')      a.sort((x,y)=>y.relevance_score-x.relevance_score);
@@ -429,7 +440,8 @@ function clientSort(list){
   else if(s==='newest')    a.sort((x,y)=>dt(y)-dt(x));
   else if(s==='oldest')    a.sort((x,y)=>dt(x)-dt(y));
   else if(s==='salary')    a.sort((x,y)=>(y.salary_max||0)-(x.salary_max||0));
-  return a;                                                      // 'recommended' keeps pool order
+  else return diversifyByCompany(a);                            // 'recommended' default → company-diverse
+  return a;
 }
 function applyView(){                          // PURE in-memory — no network, no geolocation, no rescore
   jobs=clientSort(filterView(allJobs));
