@@ -66,6 +66,61 @@ CITY_COORDS: dict[str, tuple[float, float]] = {
 
 REMOTE_HINTS = ("remote", "anywhere", "work from home", "wfh", "distributed")
 
+# --- US-only gate -------------------------------------------------------------------------------
+# Non-US country/region/city tokens (word-boundary matched). If a job names one of these and NO US
+# signal, it's dropped. Ambiguous "Remote" with no geo signal is treated as US-eligible (the seed
+# employers are US-HQ'd and default to US), so we don't over-filter valid US remote roles.
+import re as _re
+
+_NONUS = {
+    "canada", "canadian", "toronto", "vancouver", "montreal", "ottawa", "calgary", "ontario", "quebec",
+    "united kingdom", "u.k.", "uk", "england", "london", "manchester", "scotland", "wales", "ireland", "dublin",
+    "europe", "european", "emea", "apac", "apj", "latam", "mena", "anz", "nordics", "nordic",
+    "germany", "berlin", "munich", "france", "paris", "spain", "madrid", "barcelona", "netherlands",
+    "amsterdam", "italy", "rome", "milan", "portugal", "lisbon", "poland", "warsaw", "austria", "vienna",
+    "switzerland", "zurich", "sweden", "stockholm", "norway", "oslo", "denmark", "copenhagen", "finland",
+    "helsinki", "belgium", "brussels", "czech", "prague", "romania", "bucharest", "greece", "hungary",
+    "budapest", "bulgaria", "serbia", "croatia", "estonia", "lithuania", "latvia", "luxembourg",
+    "india", "bangalore", "bengaluru", "hyderabad", "mumbai", "delhi", "pune", "chennai", "gurgaon", "noida",
+    "singapore", "japan", "tokyo", "china", "beijing", "shanghai", "shenzhen", "hong kong", "korea", "seoul",
+    "taiwan", "taipei", "philippines", "manila", "vietnam", "hanoi", "thailand", "bangkok", "malaysia",
+    "kuala lumpur", "indonesia", "jakarta", "pakistan", "bangladesh",
+    "australia", "sydney", "melbourne", "brisbane", "perth", "new zealand", "auckland",
+    "brazil", "brasil", "sao paulo", "rio de janeiro", "mexico", "guadalajara", "argentina",
+    "buenos aires", "colombia", "bogota", "chile", "santiago", "peru", "lima", "costa rica",
+    "uruguay", "ecuador",
+    "israel", "tel aviv", "u.a.e.", "uae", "dubai", "abu dhabi", "saudi", "riyadh", "qatar", "egypt",
+    "cairo", "south africa", "johannesburg", "cape town", "nigeria", "lagos", "kenya", "nairobi", "turkey",
+    "istanbul", "morocco", "ukraine", "kyiv",
+}
+_US_STATES = {"al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga", "hi", "id", "il", "in", "ia",
+              "ks", "ky", "la", "me", "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv", "nh", "nj",
+              "nm", "ny", "nc", "nd", "oh", "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", "vt",
+              "va", "wa", "wv", "wi", "wy", "dc"}
+_US_STATE_NAMES = {"alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut",
+    "delaware", "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas",
+    "kentucky", "louisiana", "maine", "maryland", "massachusetts", "michigan", "minnesota", "mississippi",
+    "missouri", "montana", "nebraska", "nevada", "new hampshire", "new jersey", "new mexico", "new york",
+    "north carolina", "north dakota", "ohio", "oklahoma", "oregon", "pennsylvania", "rhode island",
+    "south carolina", "south dakota", "tennessee", "texas", "utah", "vermont", "virginia", "washington",
+    "west virginia", "wisconsin", "wyoming"}
+
+
+def is_us(city, region, location_name, title) -> bool:
+    """True if the job is (or is plausibly) US-based. Explicit US signal wins even if it also lists a
+    non-US region (e.g. 'Remote US; Remote Canada'). Non-US-only → False. No geo signal → US-eligible."""
+    loc = " ".join(x for x in (city, region, location_name) if x).lower()
+    combined = (loc + " | " + (title or "")).lower()
+    us = (bool(_re.search(r"\b(u\.?s\.?a?|united states)\b", loc))
+          or bool(_re.search(r",\s*(" + "|".join(_US_STATES) + r")\b", loc))
+          or any(_re.search(r"\b" + _re.escape(n) + r"\b", loc) for n in _US_STATE_NAMES)
+          or any(c in loc for c in CITY_COORDS))
+    if us:
+        return True
+    if any(_re.search(r"\b" + _re.escape(k) + r"\b", combined) for k in _NONUS):
+        return False
+    return True                                       # ambiguous ("Remote", empty) → keep as US-eligible
+
 
 def haversine_miles(a: tuple[float, float], b: tuple[float, float]) -> float:
     lat1, lon1, lat2, lon2 = map(math.radians, (a[0], a[1], b[0], b[1]))
@@ -105,9 +160,13 @@ def evaluate(job: CanonicalJob, profile: CandidateProfile) -> tuple[float, bool,
     else:
         home = CITY_COORDS.get(profile.home_city.lower(), (27.9378, -82.2859))
 
+    # US-only gate — drop anything based outside the United States, remote or not.
+    if not is_us(job.city, job.region, job.location_name, job.title):
+        return 0.0, True, "outside the US"
+
     if job.remote:
         if profile.include_remote:
-            return 1.0, False, "Remote"
+            return 0.85, False, "Remote (US)"          # kept high, but a local job outranks it
         return 0.0, True, "Remote excluded"
 
     coords = _resolve(job)
@@ -119,7 +178,7 @@ def evaluate(job: CanonicalJob, profile: CandidateProfile) -> tuple[float, bool,
         if dist is None:
             return 0.5, False, "Hybrid, location unknown"
         if dist <= profile.radius_miles:
-            return 1.0, False, f"Hybrid, {dist:.0f} mi"
+            return 1.0 - 0.1 * (dist / profile.radius_miles), False, f"Hybrid, {dist:.0f} mi"
         # hybrid = some in-office days, so a far hybrid role is as impractical as far onsite -> drop
         return 0.0, True, f"Hybrid {dist:.0f} mi away (outside {profile.radius_miles} mi)"
 
@@ -129,5 +188,5 @@ def evaluate(job: CanonicalJob, profile: CandidateProfile) -> tuple[float, bool,
     if dist is None:
         return 0.35, False, "Location unknown"
     if dist <= profile.radius_miles:
-        return 1.0, False, f"{dist:.0f} mi away"
+        return 1.0 - 0.1 * (dist / profile.radius_miles), False, f"{dist:.0f} mi away"
     return 0.0, True, f"{dist:.0f} mi away (outside {profile.radius_miles} mi)"

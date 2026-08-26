@@ -16,7 +16,20 @@ def _job(**kw):
 
 def test_remote_kept():
     score, hard_fail, _ = loc.evaluate(_job(remote=True, workplace_type="remote"), PROFILE)
-    assert hard_fail is False and score == 1.0
+    assert hard_fail is False and score == 0.85          # US remote kept, but a local job outranks it
+
+
+def test_non_us_dropped():
+    # remote or not, jobs outside the US are dropped
+    _, hf_r, _ = loc.evaluate(_job(remote=True, location_name="Remote, India"), PROFILE)
+    _, hf_o, _ = loc.evaluate(_job(workplace_type="onsite", location_name="London, United Kingdom"), PROFILE)
+    assert hf_r is True and hf_o is True
+
+
+def test_local_outranks_remote():
+    local, _, _ = loc.evaluate(_job(workplace_type="onsite", location_name="Tampa, FL"), PROFILE)
+    remote, _, _ = loc.evaluate(_job(remote=True, location_name="Remote, US"), PROFILE)
+    assert local > remote
 
 
 def test_local_onsite_kept():
